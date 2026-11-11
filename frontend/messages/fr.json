@@ -1,0 +1,109 @@
+{
+  "common": {
+    "appName": "PsyRekrute",
+    "appTagline": "La plateforme de mise en relation pour les professionnels de la psychologie de l'éducation",
+    "loading": "Chargement…",
+    "error": "Une erreur est survenue",
+    "retry": "Réessayer",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "close": "Fermer",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "sort": "Trier",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "view": "Voir",
+    "download": "Télécharger",
+    "upload": "Téléverser",
+    "submit": "Soumettre",
+    "required": "Obligatoire",
+    "optional": "Optionnel"
+  },
+  "nav": {
+    "home": "Accueil",
+    "offers": "Offres",
+    "dashboard": "Tableau de bord",
+    "profile": "Mon profil",
+    "notifications": "Notifications",
+    "settings": "Paramètres",
+    "login": "Connexion",
+    "logout": "Déconnexion",
+    "register": "S'inscrire"
+  },
+  "home": {
+    "hero": {
+      "title": "Trouvez votre stage ou emploi idéal en psychologie de l'éducation",
+      "subtitle": "PsyRekrute met en relation les étudiants et jeunes diplômés avec les centres spécialisés du Maroc.",
+      "ctaCandidate": "Je suis étudiant / diplômé",
+      "ctaOrganization": "Je suis un centre / organisme",
+      "stats": {
+        "candidates": "Candidats inscrits",
+        "organizations": "Centres partenaires",
+        "offers": "Offres actives",
+        "placements": "Mises en relation réussies"
+      }
+    },
+    "features": {
+      "matching": {
+        "title": "Matching intelligent",
+        "description": "Notre algorithme analyse votre profil et vous propose les offres les plus adaptées à vos compétences et votre parcours."
+      },
+      "trilingual": {
+        "title": "Plateforme trilingue",
+        "description": "Interface disponible en Français, Arabe et Anglais pour servir tous les professionnels du secteur."
+      },
+      "privacy": {
+        "title": "Confidentialité par défaut",
+        "description": "Votre profil est privé par défaut. Vous contrôlez qui peut voir vos informations."
+      }
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion",
+      "email": "Adresse e-mail",
+      "password": "Mot de passe",
+      "rememberMe": "Se souvenir de moi",
+      "forgotPassword": "Mot de passe oublié ?",
+      "submit": "Se connecter",
+      "noAccount": "Pas encore de compte ?",
+      "createAccount": "Créer un compte"
+    },
+    "register": {
+      "title": "Créer un compte",
+      "accountType": "Type de compte",
+      "candidate": "Étudiant / Diplômé",
+      "organization": "Centre / Organisme",
+      "firstName": "Prénom",
+      "lastName": "Nom",
+      "email": "Adresse e-mail",
+      "password": "Mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "submit": "Créer mon compte",
+      "hasAccount": "Déjà un compte ?",
+      "loginLink": "Se connecter",
+      "termsConsent": "J'accepte les conditions d'utilisation et la politique de confidentialité"
+    }
+  },
+  "errors": {
+    "required": "Ce champ est obligatoire",
+    "email": "Adresse e-mail invalide",
+    "minLength": "Minimum {count} caractères requis",
+    "maxLength": "Maximum {count} caractères autorisés",
+    "passwordMatch": "Les mots de passe ne correspondent pas",
+    "serverError": "Erreur serveur. Veuillez réessayer.",
+    "notFound": "Page introuvable",
+    "unauthorized": "Accès non autorisé"
+  },
+  "health": {
+    "status": "État du service",
+    "connected": "Connecté",
+    "disconnected": "Déconnecté",
+    "checking": "Vérification en cours…"
+  }
+}

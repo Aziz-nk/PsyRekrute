@@ -1,0 +1,603 @@
+// Prisma Schema - PsyRekrute DCTF v3.1
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ----------------------------------------------------
+// ENUMS
+// ----------------------------------------------------
+
+enum GlobalRole {
+  CANDIDATE
+  ORGANIZATION_USER
+  SYSTEM_ADMIN
+}
+
+enum OrgMemberRole {
+  OWNER
+  ADMIN
+  RECRUITER
+  VIEWER
+}
+
+enum ProfileCategory {
+  STUDENT
+  RECENT_GRADUATE
+  EXPERIENCED_PROFESSIONAL
+}
+
+enum AvailabilityStatus {
+  IMMEDIATE
+  DATE
+  CURRENTLY_EMPLOYED
+  PART_TIME
+}
+
+enum OrganizationType {
+  CMPP
+  ASSOCIATION
+  CABINET_LIBERAL
+  ECOLE_INCLUSIVE
+  CLINIQUE_SPECIALISEE
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum DegreeLevel {
+  BAC_3
+  BAC_5_MASTER
+  BAC_8_DOCTORAT
+  DIPLOME_ETAT
+  DU_SPECIALISE
+}
+
+enum ExperienceType {
+  STAGE_OBSERVATION
+  STAGE_PFE
+  STAGE_CLINIQUE
+  EMPLOI_SALARIE
+  VOLONTARIAT
+}
+
+enum SkillLevel {
+  NOTIONS
+  PRATIQUANT
+  AUTONOME
+  EXPERT
+}
+
+enum LanguageProficiency {
+  NOTIONS
+  INTERMEDIAIRE
+  COURANT_PROFESSIONNEL
+  LANGUE_MATERNELLE
+}
+
+enum OfferType {
+  STAGE_OBSERVATION
+  STAGE_PFE
+  EMPLOI
+}
+
+enum ApplicationStatus {
+  INVITED
+  INVITATION_DECLINED
+  INVITATION_EXPIRED
+  SUBMITTED
+  REVIEWING
+  INTERVIEW_PROPOSED
+  INTERVIEW_CONFIRMED
+  INTERVIEW_RESCHEDULE_REQUESTED
+  OFFER_EXTENDED
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ApplicationOrigin {
+  DIRECT_APPLY
+  CENTER_INVITATION
+}
+
+enum InterviewMode {
+  IN_PERSON
+  VIDEO_CALL
+}
+
+enum ReportReason {
+  SUSPICIOUS_OFFER
+  DISCRIMINATORY_CONTENT
+  MEDICAL_DATA_REQUEST
+  ABUSIVE_BEHAVIOR
+}
+
+enum ReportStatus {
+  PENDING
+  INVESTIGATING
+  RESOLVED
+  DISMISSED
+}
+
+// ----------------------------------------------------
+// ENTITIES (23 ENTITIES)
+// ----------------------------------------------------
+
+// 1. USERS
+model User {
+  id               String          @id @default(uuid()) @db.Uuid
+  email            String          @unique @db.VarChar(255)
+  passwordHash     String          @map("password_hash") @db.VarChar(255)
+  globalRole       GlobalRole      @default(CANDIDATE) @map("global_role")
+  preferredLocale  String          @default("fr") @map("preferred_locale") @db.VarChar(5)
+  isEmailVerified  Boolean         @default(false) @map("is_email_verified")
+  isActive         Boolean         @default(true) @map("is_active")
+  lastLoginAt      DateTime?       @map("last_login_at")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @default(now()) @updatedAt @map("updated_at")
+
+  candidateProfile    CandidateProfile?
+  organizationMembers OrganizationMember[]
+  notifications       Notification[]
+  consents            Consent[]
+  auditLogs           AuditLog[]
+  reportsFiled        Report[]             @relation("ReportAuthor")
+  applicationHistory  ApplicationHistory[]
+
+  @@map("users")
+}
+
+// 2. CANDIDATE_PROFILES
+model CandidateProfile {
+  id                          String             @id @default(uuid()) @db.Uuid
+  userId                      String             @unique @map("user_id") @db.Uuid
+  firstName                   String             @map("first_name") @db.VarChar(100)
+  lastName                    String             @map("last_name") @db.VarChar(100)
+  phone                       String?            @db.VarChar(30)
+  profileCategory             ProfileCategory    @map("profile_category")
+  primarySpecialtyId          String             @map("primary_specialty_id") @db.Uuid
+  regionCode                  String             @map("region_code") @db.VarChar(10)
+  cityName                    String             @map("city_name") @db.VarChar(100)
+  mobilityRadiusKm            Int                @default(0) @map("mobility_radius_km")
+  openToRelocation            Boolean            @default(false) @map("open_to_relocation")
+  availabilityStatus          AvailabilityStatus @map("availability_status")
+  availableFrom               DateTime?          @map("available_from") @db.Date
+  targetContractTypes         String[]           @map("target_contract_types")
+  bio                         String?            @db.Text
+  cvStoragePath               String?            @map("cv_storage_path") @db.VarChar(500)
+  isAnonymizedInPool          Boolean            @default(true) @map("is_anonymized_in_pool")
+  isDeleted                   Boolean            @default(false) @map("is_deleted")
+  profileCompletionPercentage Int                @default(0) @map("profile_completion_percentage")
+  createdAt                   DateTime           @default(now()) @map("created_at")
+  updatedAt                   DateTime           @default(now()) @updatedAt @map("updated_at")
+
+  user             User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  primarySpecialty RefSpecialty             @relation("PrimarySpecialty", fields: [primarySpecialtyId], references: [id], onDelete: Restrict)
+  education        CandidateEducation[]
+  experiences      CandidateExperience[]
+  skills           CandidateSkill[]
+  languages        CandidateLanguage[]
+  certifications   CandidateCertification[]
+  savedOffers      SavedOffer[]
+  applications     Application[]
+  matchResults     MatchResult[]
+
+  @@index([regionCode])
+  @@index([cityName])
+  @@map("candidate_profiles")
+}
+
+// 3. ORGANIZATIONS
+model Organization {
+  id                         String             @id @default(uuid()) @db.Uuid
+  legalName                  String             @map("legal_name") @db.VarChar(255)
+  tradeName                  String             @map("trade_name") @db.VarChar(255)
+  organizationType           OrganizationType   @map("organization_type")
+  identifierIce              String?            @unique @map("identifier_ice") @db.VarChar(15)
+  officialRegistrationNumber String?            @map("official_registration_number") @db.VarChar(100)
+  website                    String?            @db.VarChar(255)
+  phone                      String             @db.VarChar(50)
+  email                      String             @db.VarChar(255)
+  regionCode                 String             @map("region_code") @db.VarChar(10)
+  cityName                   String             @map("city_name") @db.VarChar(100)
+  addressLine                String             @map("address_line") @db.Text
+  verificationStatus         VerificationStatus @default(PENDING) @map("verification_status")
+  verifiedAt                 DateTime?          @map("verified_at")
+  isActive                   Boolean            @default(true) @map("is_active")
+  createdAt                  DateTime           @default(now()) @map("created_at")
+  updatedAt                  DateTime           @default(now()) @updatedAt @map("updated_at")
+
+  members   OrganizationMember[]
+  jobOffers JobOffer[]
+  reports   Report[]             @relation("ReportedOrganization")
+
+  @@index([regionCode])
+  @@index([cityName])
+  @@map("organizations")
+}
+
+// 4. ORGANIZATION_MEMBERS
+model OrganizationMember {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  userId         String        @map("user_id") @db.Uuid
+  role           OrgMemberRole
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  authoredOffers JobOffer[]
+
+  @@unique([organizationId, userId])
+  @@map("organization_members")
+}
+
+// 5. REF_SPECIALTIES
+model RefSpecialty {
+  id          String   @id @default(uuid()) @db.Uuid
+  parentId    String?  @map("parent_id") @db.Uuid
+  code        String   @unique @db.VarChar(50)
+  titleFr     String   @map("title_fr") @db.VarChar(150)
+  titleAr     String   @map("title_ar") @db.VarChar(150)
+  titleEn     String   @map("title_en") @db.VarChar(150)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+
+  parent              RefSpecialty?        @relation("SpecialtyHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children            RefSpecialty[]       @relation("SpecialtyHierarchy")
+  candidatesPrimary   CandidateProfile[]   @relation("PrimarySpecialty")
+  candidateEducations CandidateEducation[]
+  jobOffersTargeted   JobOffer[]
+
+  @@map("ref_specialties")
+}
+
+// 6. REF_SKILLS
+model RefSkill {
+  id                 String   @id @default(uuid()) @db.Uuid
+  category           String   @db.VarChar(50)
+  parentId           String?  @map("parent_id") @db.Uuid
+  code               String   @unique @db.VarChar(50)
+  titleFr            String   @map("title_fr") @db.VarChar(150)
+  titleAr            String   @map("title_ar") @db.VarChar(150)
+  titleEn            String   @map("title_en") @db.VarChar(150)
+  isVerifiedEligible Boolean  @default(true) @map("is_verified_eligible")
+
+  parent           RefSkill?          @relation("SkillHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children         RefSkill[]         @relation("SkillHierarchy")
+  candidateSkills  CandidateSkill[]
+  jobRequiredSkills JobRequiredSkill[]
+
+  @@map("ref_skills")
+}
+
+// 7. CANDIDATE_EDUCATION
+model CandidateEducation {
+  id                  String      @id @default(uuid()) @db.Uuid
+  candidateId         String      @map("candidate_id") @db.Uuid
+  degreeLevel         DegreeLevel @map("degree_level")
+  degreeTitle         String      @map("degree_title") @db.VarChar(200)
+  institutionName     String      @map("institution_name") @db.VarChar(200)
+  specialtyId         String      @map("specialty_id") @db.Uuid
+  startYear           Int         @map("start_year")
+  endYear             Int?        @map("end_year")
+  isCurrentlyEnrolled Boolean     @default(false) @map("is_currently_enrolled")
+  isDiplomaVerified   Boolean     @default(false) @map("is_diploma_verified")
+  diplomaDocumentPath String?     @map("diploma_document_path") @db.VarChar(500)
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  specialty RefSpecialty     @relation(fields: [specialtyId], references: [id], onDelete: Restrict)
+
+  @@map("candidate_education")
+}
+
+// 8. CANDIDATE_EXPERIENCE
+model CandidateExperience {
+  id               String         @id @default(uuid()) @db.Uuid
+  candidateId      String         @map("candidate_id") @db.Uuid
+  experienceType   ExperienceType @map("experience_type")
+  organizationName String         @map("organization_name") @db.VarChar(200)
+  positionTitle    String         @map("position_title") @db.VarChar(200)
+  targetAudience   String?        @map("target_audience") @db.VarChar(50)
+  startDate        DateTime       @map("start_date") @db.Date
+  endDate          DateTime?      @map("end_date") @db.Date
+  isCurrent        Boolean        @default(false) @map("is_current")
+  totalMonths      Int            @map("total_months")
+  description      String?        @db.Text
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@map("candidate_experience")
+}
+
+// 9. CANDIDATE_SKILLS
+model CandidateSkill {
+  id                 String     @id @default(uuid()) @db.Uuid
+  candidateId        String     @map("candidate_id") @db.Uuid
+  skillId            String     @map("skill_id") @db.Uuid
+  level              SkillLevel
+  isVerified         Boolean    @default(false) @map("is_verified")
+  verificationSource String?    @map("verification_source") @db.VarChar(100)
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  skill     RefSkill         @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@unique([candidateId, skillId])
+  @@map("candidate_skills")
+}
+
+// 10. CANDIDATE_LANGUAGES
+model CandidateLanguage {
+  id               String              @id @default(uuid()) @db.Uuid
+  candidateId      String              @map("candidate_id") @db.Uuid
+  languageCode     String              @map("language_code") @db.VarChar(20)
+  proficiencyLevel LanguageProficiency @map("proficiency_level")
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateId, languageCode])
+  @@map("candidate_languages")
+}
+
+// 11. CANDIDATE_CERTIFICATIONS
+model CandidateCertification {
+  id                  String   @id @default(uuid()) @db.Uuid
+  candidateId         String   @map("candidate_id") @db.Uuid
+  title               String   @db.VarChar(200)
+  issuingOrganization String   @map("issuing_organization") @db.VarChar(200)
+  issueDate           DateTime @map("issue_date") @db.Date
+  credentialId        String?  @map("credential_id") @db.VarChar(100)
+  documentPath        String?  @map("document_path") @db.VarChar(500)
+  isVerified          Boolean  @default(false) @map("is_verified")
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@map("candidate_certifications")
+}
+
+// 12. JOB_OFFERS
+model JobOffer {
+  id                    String      @id @default(uuid()) @db.Uuid
+  organizationId        String      @map("organization_id") @db.Uuid
+  authorMemberId        String      @map("author_member_id") @db.Uuid
+  title                 String      @db.VarChar(255)
+  offerType             OfferType   @map("offer_type")
+  contractSubType       String      @map("contract_sub_type") @db.VarChar(30)
+  requiredDegreeLevel   DegreeLevel @map("required_degree_level")
+  targetSpecialtyId     String      @map("target_specialty_id") @db.Uuid
+  regionCode            String      @map("region_code") @db.VarChar(10)
+  cityName              String      @map("city_name") @db.VarChar(100)
+  minExperienceMonths   Int         @default(0) @map("min_experience_months")
+  isExperienceMandatory Boolean     @default(false) @map("is_experience_mandatory")
+  startDate             DateTime    @map("start_date") @db.Date
+  durationMonths        Int?        @map("duration_months")
+  remunerationStipend   String?     @map("remuneration_stipend") @db.VarChar(100)
+  description           String      @db.Text
+  status                String      @default("DRAFT") @db.VarChar(30)
+  publishedAt           DateTime?   @map("published_at")
+  closedAt              DateTime?   @map("closed_at")
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @default(now()) @updatedAt @map("updated_at")
+
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  authorMember     OrganizationMember   @relation(fields: [authorMemberId], references: [id], onDelete: Restrict)
+  targetSpecialty  RefSpecialty         @relation(fields: [targetSpecialtyId], references: [id], onDelete: Restrict)
+  requiredSkills   JobRequiredSkill[]
+  requiredLanguages JobRequiredLanguage[]
+  applications     Application[]
+  savedByCandidates SavedOffer[]
+  matchResults     MatchResult[]
+  reports          Report[]             @relation("ReportedOffer")
+
+  @@index([offerType])
+  @@index([regionCode])
+  @@index([cityName])
+  @@map("job_offers")
+}
+
+// 13. JOB_REQUIRED_SKILLS
+model JobRequiredSkill {
+  id               String     @id @default(uuid()) @db.Uuid
+  jobOfferId       String     @map("job_offer_id") @db.Uuid
+  skillId          String     @map("skill_id") @db.Uuid
+  isMandatory      Boolean    @default(false) @map("is_mandatory")
+  minRequiredLevel SkillLevel @map("min_required_level")
+  weight           Int        @default(1)
+
+  jobOffer JobOffer @relation(fields: [jobOfferId], references: [id], onDelete: Cascade)
+  skill    RefSkill @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@unique([jobOfferId, skillId])
+  @@map("job_required_skills")
+}
+
+// 14. JOB_REQUIRED_LANGUAGES
+model JobRequiredLanguage {
+  id                 String              @id @default(uuid()) @db.Uuid
+  jobOfferId         String              @map("job_offer_id") @db.Uuid
+  languageCode       String              @map("language_code") @db.VarChar(20)
+  minProficiencyLevel LanguageProficiency @map("min_proficiency_level")
+  isMandatory        Boolean             @default(true) @map("is_mandatory")
+
+  jobOffer JobOffer @relation(fields: [jobOfferId], references: [id], onDelete: Cascade)
+
+  @@unique([jobOfferId, languageCode])
+  @@map("job_required_languages")
+}
+
+// 15. APPLICATIONS
+model Application {
+  id                       String            @id @default(uuid()) @db.Uuid
+  jobOfferId               String            @map("job_offer_id") @db.Uuid
+  candidateId              String            @map("candidate_id") @db.Uuid
+  origin                   ApplicationOrigin
+  currentStatus            ApplicationStatus @map("current_status")
+  initialMatchScore        Decimal?          @map("initial_match_score") @db.Decimal(5, 2)
+  invitationSentAt         DateTime?         @map("invitation_sent_at")
+  invitationExpiresAt      DateTime?         @map("invitation_expires_at")
+  interviewDate            DateTime?         @map("interview_date")
+  interviewMode            InterviewMode?    @map("interview_mode")
+  interviewLocationOrLink  String?           @map("interview_location_or_link") @db.Text
+  interviewRescheduleCount Int               @default(0) @map("interview_reschedule_count")
+  hiringOfferDetails       String?           @map("hiring_offer_details") @db.Text
+  hiringOfferDeadline      DateTime?         @map("hiring_offer_deadline")
+  createdAt                DateTime          @default(now()) @map("created_at")
+  updatedAt                DateTime          @default(now()) @updatedAt @map("updated_at")
+
+  jobOffer  JobOffer             @relation(fields: [jobOfferId], references: [id], onDelete: Cascade)
+  candidate CandidateProfile     @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  history   ApplicationHistory[]
+
+  @@unique([jobOfferId, candidateId])
+  @@index([currentStatus])
+  @@map("applications")
+}
+
+// 16. APPLICATION_HISTORY
+model ApplicationHistory {
+  id                String             @id @default(uuid()) @db.Uuid
+  applicationId     String             @map("application_id") @db.Uuid
+  fromStatus        ApplicationStatus? @map("from_status")
+  toStatus          ApplicationStatus  @map("to_status")
+  changedByUserId   String             @map("changed_by_user_id") @db.Uuid
+  comment           String?            @db.Text
+  createdAt         DateTime           @default(now()) @map("created_at")
+
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  changedByUser User        @relation(fields: [changedByUserId], references: [id], onDelete: Restrict)
+
+  @@map("application_history")
+}
+
+// 17. MATCHING_CONFIG
+model MatchingConfig {
+  id                String    @id @default(uuid()) @db.Uuid
+  offerType         OfferType @unique @map("offer_type")
+  weightFormation   Decimal   @map("weight_formation") @db.Decimal(4, 2)
+  weightSkills      Decimal   @map("weight_skills") @db.Decimal(4, 2)
+  weightExperience  Decimal   @map("weight_experience") @db.Decimal(4, 2)
+  weightLocation    Decimal   @map("weight_location") @db.Decimal(4, 2)
+  weightLanguages   Decimal   @map("weight_languages") @db.Decimal(4, 2)
+  weightAvailability Decimal  @map("weight_availability") @db.Decimal(4, 2)
+  algoVersion       String    @map("algo_version") @db.VarChar(20)
+  isActive          Boolean   @default(true) @map("is_active")
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@map("matching_config")
+}
+
+// 18. MATCH_RESULTS
+model MatchResult {
+  id                          String   @id @default(uuid()) @db.Uuid
+  jobOfferId                  String   @map("job_offer_id") @db.Uuid
+  candidateId                 String   @map("candidate_id") @db.Uuid
+  totalScore                  Decimal  @map("total_score") @db.Decimal(5, 2)
+  scoreFormation              Decimal  @map("score_formation") @db.Decimal(5, 2)
+  scoreSkills                 Decimal  @map("score_skills") @db.Decimal(5, 2)
+  scoreExperience             Decimal  @map("score_experience") @db.Decimal(5, 2)
+  scoreLocation               Decimal  @map("score_location") @db.Decimal(5, 2)
+  scoreLanguages              Decimal  @map("score_languages") @db.Decimal(5, 2)
+  scoreAvailability           Decimal  @map("score_availability") @db.Decimal(5, 2)
+  explanations                Json
+  mandatoryCriteriaSatisfied  Boolean  @map("mandatory_criteria_satisfied")
+  algoVersion                 String   @map("algo_version") @db.VarChar(20)
+  calculatedAt                DateTime @default(now()) @map("calculated_at")
+
+  jobOffer  JobOffer         @relation(fields: [jobOfferId], references: [id], onDelete: Cascade)
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([jobOfferId, candidateId])
+  @@index([totalScore])
+  @@map("match_results")
+}
+
+// 19. SAVED_OFFERS
+model SavedOffer {
+  id          String   @id @default(uuid()) @db.Uuid
+  candidateId String   @map("candidate_id") @db.Uuid
+  jobOfferId  String   @map("job_offer_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobOffer  JobOffer         @relation(fields: [jobOfferId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateId, jobOfferId])
+  @@map("saved_offers")
+}
+
+// 20. NOTIFICATIONS
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  type      String   @db.VarChar(50)
+  title     String   @db.VarChar(255)
+  message   String   @db.Text
+  linkUrl   String?  @map("link_url") @db.VarChar(255)
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+// 21. CONSENTS
+model Consent {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  consentType  String   @map("consent_type") @db.VarChar(50)
+  version      String   @db.VarChar(20)
+  hasConsented Boolean  @map("has_consented")
+  ipAddress    String   @map("ip_address") @db.VarChar(45)
+  userAgent    String   @map("user_agent") @db.Text
+  consentedAt  DateTime @default(now()) @map("consented_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("consents")
+}
+
+// 22. AUDIT_LOGS
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String   @db.VarChar(100)
+  entityType String   @map("entity_type") @db.VarChar(50)
+  entityId   String   @map("entity_id") @db.Uuid
+  details    Json?
+  ipAddress  String   @map("ip_address") @db.VarChar(45)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+// 23. REPORTS
+model Report {
+  id             String       @id @default(uuid()) @db.Uuid
+  reporterUserId String       @map("reporter_user_id") @db.Uuid
+  targetType     String       @map("target_type") @db.VarChar(30)
+  targetId       String       @map("target_id") @db.Uuid
+  reason         ReportReason
+  description    String       @db.Text
+  status         ReportStatus @default(PENDING)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @default(now()) @updatedAt @map("updated_at")
+
+  reporterUser         User          @relation("ReportAuthor", fields: [reporterUserId], references: [id], onDelete: Restrict)
+  reportedJobOffer     JobOffer?     @relation("ReportedOffer", fields: [targetId], references: [id], map: "fk_report_job_offer")
+  reportedOrganization Organization? @relation("ReportedOrganization", fields: [targetId], references: [id], map: "fk_report_organization")
+
+  @@map("reports")
+}

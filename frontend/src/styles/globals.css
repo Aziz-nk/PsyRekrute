@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-inter: 'Inter', system-ui, sans-serif;
+    --font-noto-arabic: 'Noto Sans Arabic', Arial, sans-serif;
+  }
+
+  /* RTL support */
+  [dir='rtl'] {
+    font-family: var(--font-noto-arabic);
+  }
+
+  [dir='ltr'] {
+    font-family: var(--font-inter);
+  }
+}
+
+@layer utilities {
+  /* Smooth RTL/LTR transitions */
+  .rtl-flip {
+    transform: scaleX(-1);
+  }
+
+  [dir='rtl'] .rtl-flip {
+    transform: scaleX(1);
+  }
+}

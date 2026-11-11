@@ -1,0 +1,109 @@
+{
+  "common": {
+    "appName": "PsyRekrute",
+    "appTagline": "The professional matching platform for educational psychology specialists",
+    "loading": "Loading…",
+    "error": "An error occurred",
+    "retry": "Retry",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "edit": "Edit",
+    "delete": "Delete",
+    "view": "View",
+    "download": "Download",
+    "upload": "Upload",
+    "submit": "Submit",
+    "required": "Required",
+    "optional": "Optional"
+  },
+  "nav": {
+    "home": "Home",
+    "offers": "Offers",
+    "dashboard": "Dashboard",
+    "profile": "My Profile",
+    "notifications": "Notifications",
+    "settings": "Settings",
+    "login": "Log In",
+    "logout": "Log Out",
+    "register": "Sign Up"
+  },
+  "home": {
+    "hero": {
+      "title": "Find your ideal internship or job in educational psychology",
+      "subtitle": "PsyRekrute connects students and graduates with specialized centers across Morocco.",
+      "ctaCandidate": "I'm a student / graduate",
+      "ctaOrganization": "I'm a center / organization",
+      "stats": {
+        "candidates": "Registered candidates",
+        "organizations": "Partner centers",
+        "offers": "Active offers",
+        "placements": "Successful placements"
+      }
+    },
+    "features": {
+      "matching": {
+        "title": "Smart Matching",
+        "description": "Our algorithm analyzes your profile and suggests the offers most suited to your skills and background."
+      },
+      "trilingual": {
+        "title": "Trilingual Platform",
+        "description": "Interface available in French, Arabic, and English to serve all professionals in the sector."
+      },
+      "privacy": {
+        "title": "Privacy by Default",
+        "description": "Your profile is private by default. You control who can see your information."
+      }
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Log In",
+      "email": "Email address",
+      "password": "Password",
+      "rememberMe": "Remember me",
+      "forgotPassword": "Forgot password?",
+      "submit": "Log In",
+      "noAccount": "Don't have an account?",
+      "createAccount": "Create an account"
+    },
+    "register": {
+      "title": "Create an account",
+      "accountType": "Account type",
+      "candidate": "Student / Graduate",
+      "organization": "Center / Organization",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "Email address",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "submit": "Create my account",
+      "hasAccount": "Already have an account?",
+      "loginLink": "Log In",
+      "termsConsent": "I agree to the Terms of Service and Privacy Policy"
+    }
+  },
+  "errors": {
+    "required": "This field is required",
+    "email": "Invalid email address",
+    "minLength": "Minimum {count} characters required",
+    "maxLength": "Maximum {count} characters allowed",
+    "passwordMatch": "Passwords do not match",
+    "serverError": "Server error. Please try again.",
+    "notFound": "Page not found",
+    "unauthorized": "Unauthorized access"
+  },
+  "health": {
+    "status": "Service Status",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "checking": "Checking…"
+  }
+}
