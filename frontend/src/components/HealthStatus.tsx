@@ -15,8 +15,9 @@ export default function HealthStatus() {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-    fetch(`${API}/api/v1/health`)
+    // NEXT_PUBLIC_API_URL inclut deja le prefixe /api/v1 (cf. .env.example)
+    const API = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1').replace(/\/$/, '');
+    fetch(`${API}/health`)
       .then((res) => res.json())
       .then((json: HealthResponse) => {
         setData(json);

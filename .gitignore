@@ -47,3 +47,8 @@ backend/prisma/*.db-journal
 
 # Local tools and runtimes
 .tools/
+
+# Stockage local de developpement
+local-storage/
+backend/local-storage/
+docs/.jest-last.txt

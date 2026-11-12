@@ -70,7 +70,7 @@ describe('MatchingService (DCTF v3.1 Golden Test Vectors)', () => {
     };
 
     const offer: OfferData = {
-      requiredDegreeLevelValue: 3, // Bac+8 / Doctorat (Stage PFE de recherche)
+      requiredDegreeLevelValue: 2, // Bac+5 / Master requis (DCTF v3.1 §6, Cas 2)
       requiredSkills: [
         { code: 'WISC_V', minRequiredLevel: 3, isMandatory: true, weight: 2 },
         { code: 'PECS', minRequiredLevel: 2, isMandatory: false, weight: 1 },
@@ -83,7 +83,9 @@ describe('MatchingService (DCTF v3.1 Golden Test Vectors)', () => {
     };
 
     const candidate: CandidateData = {
-      degreeLevelValue: 2,
+      // Master 2 EN COURS : le diplome Bac+5 n'est pas encore obtenu.
+      // Plus haut diplome OBTENU = Licence (V=1) = V_offre - 1 + etudiant en cours => 85.
+      degreeLevelValue: 1,
       isCurrentlyEnrolled: true,
       specialtyTaxonomyFactor: 1.0,
       skills: [

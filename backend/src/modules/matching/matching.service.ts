@@ -10,7 +10,8 @@ export interface MatchingWeights {
 }
 
 export interface CandidateData {
-  degreeLevelValue: number; // 1: BAC_3, 2: BAC_5, 3: BAC_8
+  /** Plus haut diplome OBTENU (un diplome en cours ne compte pas) : 0 = aucune formation, 1 = BAC_3, 2 = BAC_5, 3 = BAC_8 */
+  degreeLevelValue: number;
   isCurrentlyEnrolled: boolean;
   specialtyTaxonomyFactor: number; // 1.0 (exact), 0.75 (sister), 0.50 (cousin), 0.25 (other)
   skills: Array<{
@@ -86,7 +87,13 @@ export class MatchingService {
     ) {
       scoreNiveau = 85;
     }
-    const scoreFormation = Number((scoreNiveau * candidate.specialtyTaxonomyFactor).toFixed(2));
+    let scoreFormation = Number((scoreNiveau * candidate.specialtyTaxonomyFactor).toFixed(2));
+    if (candidate.degreeLevelValue <= 0) {
+      // DCTF v3.1 §5.2.1 : aucune formation renseignee => S_form = 0 et critere obligatoire non satisfait
+      scoreFormation = 0;
+      mandatoryCriteriaSatisfied = false;
+      gaps.push('Aucune formation renseignée');
+    }
     if (scoreFormation >= 80) {
       strengths.push('Formation et spécialité académique en adéquation');
     }

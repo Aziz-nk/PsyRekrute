@@ -9,6 +9,7 @@ import { HealthModule } from './modules/health/health.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      expandVariables: true, // permet ${VAR} dans .env (ex. DATABASE_URL)
       envFilePath: '.env',
     }),
     PrismaModule,
