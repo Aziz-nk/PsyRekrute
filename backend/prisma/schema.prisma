@@ -1,4 +1,4 @@
-// Prisma Schema - PsyRekrute DCTF v3.1
+// Prisma Schema - PsyRekrute DCTF v3.1.2 (24 Entities)
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -127,8 +127,16 @@ enum ReportStatus {
   DISMISSED
 }
 
+enum SessionRevocationReason {
+  ROTATED
+  USER_LOGOUT
+  LOGOUT_ALL
+  REUSE_DETECTED
+  ADMIN_REVOKED
+}
+
 // ----------------------------------------------------
-// ENTITIES (23 ENTITIES)
+// ENTITIES (24 ENTITIES)
 // ----------------------------------------------------
 
 // 1. USERS
@@ -151,6 +159,7 @@ model User {
   auditLogs           AuditLog[]
   reportsFiled        Report[]             @relation("ReportAuthor")
   applicationHistory  ApplicationHistory[]
+  sessions            UserSession[]
 
   @@map("users")
 }
@@ -600,4 +609,27 @@ model Report {
   reportedOrganization Organization? @relation("ReportedOrganization", fields: [targetId], references: [id], map: "fk_report_organization")
 
   @@map("reports")
+}
+
+// 24. USER_SESSIONS (D1 - Refresh Tokens haches SHA-256, rotation et revocation)
+model UserSession {
+  id                  String                   @id @default(uuid()) @db.Uuid
+  userId              String                   @map("user_id") @db.Uuid
+  tokenHash           String                   @unique @map("token_hash") @db.VarChar(64)
+  replacedBySessionId String?                  @unique @map("replaced_by_session_id") @db.Uuid
+  ipAddress           String?                  @map("ip_address") @db.VarChar(45)
+  userAgent           String?                  @map("user_agent") @db.Text
+  expiresAt           DateTime                 @map("expires_at")
+  revokedAt           DateTime?                @map("revoked_at")
+  revocationReason    SessionRevocationReason? @map("revocation_reason")
+  createdAt           DateTime                 @default(now()) @map("created_at")
+
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBySession UserSession? @relation("SessionRotation", fields: [replacedBySessionId], references: [id], onDelete: SetNull)
+  replacedSession   UserSession? @relation("SessionRotation")
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([userId, revokedAt])
+  @@map("user_sessions")
 }
