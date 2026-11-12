@@ -3,7 +3,7 @@ import * as crypto from 'crypto';
 import { STORAGE_PROVIDER, StorageProvider } from './storage.types';
 
 const URL_TTL_SECONDS = 900; // 15 minutes
-const MAX_PDF_BYTES = 10 * 1024 * 1024;
+const MAX_PDF_BYTES = 5 * 1024 * 1024; // 5 Mo strict (DCTF §8.2 / D3)
 
 /**
  * Facade utilisee par les modules metier. Elle ne connait PAS MinIO ni le disque :

@@ -1,4 +1,4 @@
-# Dossier de Conception Technique et Fonctionnelle (DCTF) – Version 3.1
+# Dossier de Conception Technique et Fonctionnelle (DCTF) – Version 3.1.2
 ## Projet : PsyRekrute
 **Plateforme trilingue de mise en relation et de matching intelligent pour étudiants, diplômés en psychologie de l'éducation / domaines connexes et structures d'accueil au Maroc**
 
@@ -12,6 +12,7 @@
 | **v3.0** | 2026-11-09 | Direction Technique | Archivée | Monolithe modulaire, Prisma, Docker, cadrage psychologie de l'éducation, modèle relationnel enrichi. |
 | **v3.1** | 2026-11-09 | Direction Technique / Équipe Antigravity | **Soumise à validation** | **Révision majeure suite à la revue approfondie du coordinateur :**<br>• Harmonisation stricte du modèle de données (23 entités exactes, relations, cascades et index corrigés).<br>• Matrice RBAC clarifiée : dissociation étanche entre `GlobalRole` et `OrgMemberRole`.<br>• Refonte mathématique intégrale de l'algorithme de matching : formules formelles pour chaque critère, élimination de la contradiction sur les compétences souhaitables, bonus de vérification borné à 100%, matrice ontologique des compétences connexes.<br>• Trois cas chiffrés complets et reproductibles par des tests unitaires (Observation, PFE, Emploi).<br>• Machine à états finis (FSM) d'application complète avec matrice des transitions autorisées/interdites, expiration des invitations et règles de réinvitation.<br>• Spécifications détaillées de sécurité : cycle de vie des refresh tokens, URLs signées S3 temporaires, validation des magic bytes PDF, logs d'audit sensibles.<br>• Cadrage juridique rigoureux de la Loi 09-08 (durée de conservation de 24 mois requalifiée en choix organisationnel d'entreprise et identification des démarches CNDP soumises à avis juridique).<br>• Contrats d'API exhaustifs avec DTOs, validations, codes d'erreurs et pagination.<br>• Environnement Docker harmonisé sans secrets en clair.<br>• Organisation collaborative des 5 développeurs avec matrice anti-blocage, contrats d'interface et Definition of Done (DoD). |
 | **v3.1.1** | 2026-11-12 | Direction Technique | **Précision validée par le coordinateur** | §5.2.1 : distinction diplôme **obtenu** / formation **en cours** et crédit d'inscription par type d'offre (emploi 0, PFE 85, observation 100). Exemples Cas 1, 2, 3 reformulés ; scores (100,00 / 93,25 / 82,33) et pondérations inchangés. |
+| **v3.1.2** | 2026-11-12 | Direction Technique | **Décisions Sprint 2 validées par le coordinateur** | D1 : ajout de la 24e entité `USER_SESSIONS` (refresh token haché SHA-256, rotation, détection de réutilisation, révocation et déconnexion globale). D2 : inscription publique restreinte à `CANDIDATE` et `ORGANIZATION_USER` (`SYSTEM_ADMIN` par seed/interne uniquement). D3 : limite stricte 5 Mo + contrôle du type réel PDF. D4 : `is_anonymized_in_pool = true` par défaut + DEC-02 validé. D5 : Cookie `Secure` selon environnement (`false` dev HTTP, `true` prod HTTPS). D6 : JWT HS256 secret >= 256 bits hors Git. D7 : mot de passe 12–128 car., Argon2id, phrases de passe, anti-bruteforce. D8 : e-mails hors Sprint 2 (dépendances documentées). §11.3 : métriques et exclusions explicites du seuil de couverture à 85 %. |
 
 ---
 
@@ -92,11 +93,11 @@ L'architecture technique est définitivement arrêtée sur un **monolithe modula
 
 ---
 
-## 3. Modèle de Données Exhaustif (23 Entités) & Schéma ERD
+## 3. Modèle de Données Exhaustif (24 Entités) & Schéma ERD
 
-Le modèle relationnel compte **exactement 23 entités**, toutes spécifiées, indexées et intégrées au diagramme ERD.
+Le modèle relationnel compte **exactement 24 entités** (incluant `USER_SESSIONS` validée par la décision D1), toutes spécifiées, indexées et intégrées au diagramme ERD.
 
-### 3.1 Liste exhaustive des 23 entités
+### 3.1 Liste exhaustive des 24 entités
 1. `USERS` (Authentification et identité générique)
 2. `CANDIDATE_PROFILES` (Profil professionnel du candidat)
 3. `ORGANIZATIONS` (Structures et centres d'accueil)
@@ -120,6 +121,7 @@ Le modèle relationnel compte **exactement 23 entités**, toutes spécifiées, i
 21. `CONSENTS` (Consentements explicites Loi 09-08 / CNDP)
 22. `AUDIT_LOGS` (Journal d'audit de sécurité et traçabilité des accès aux CVs)
 23. `REPORTS` (Signalements d'abus, d'offres frauduleuses ou de faux profils)
+24. `USER_SESSIONS` (Sessions d'authentification et Refresh Tokens hachés avec rotation et révocation)
 
 ---
 
@@ -128,6 +130,7 @@ Le modèle relationnel compte **exactement 23 entités**, toutes spécifiées, i
 ```mermaid
 erDiagram
     USERS ||--o| CANDIDATE_PROFILES : "possède profil"
+    USERS ||--o{ USER_SESSIONS : "ouvre session"
     USERS ||--o{ ORGANIZATION_MEMBERS : "membre de"
     USERS ||--o{ NOTIFICATIONS : "reçoit"
     USERS ||--o{ CONSENTS : "accorde"
@@ -201,7 +204,7 @@ erDiagram
 - `target_contract_types` (TEXT[], NOT NULL) : `['STAGE_OBSERVATION', 'STAGE_PFE', 'CDD', 'CDI', 'VACATION']`
 - `bio` (TEXT NULL)
 - `cv_storage_path` (VARCHAR(500) NULL)
-- `is_anonymized_in_pool` (BOOLEAN, default: false) : Si true, masque nom/photo/coordonnées dans le vivier
+- `is_anonymized_in_pool` (BOOLEAN, default: true) : Profil anonymisé par défaut dans le vivier (décision D4 / DEC-02) ; masque nom/coordonnées/documents tant que les autorisations nécessaires ne sont pas réunies
 - `is_deleted` (BOOLEAN, default: false) : Soft-delete pour préserver l'historique RH des centres
 - `profile_completion_percentage` (INT, default: 0)
 - `created_at`, `updated_at`
@@ -447,6 +450,18 @@ erDiagram
 - `description` (TEXT, NOT NULL)
 - `status` (VARCHAR(30), default: `'PENDING'`) : `'PENDING'`, `'INVESTIGATING'`, `'RESOLVED'`, `'DISMISSED'`
 - `created_at`, `updated_at`
+
+#### 24. `USER_SESSIONS` (Décision D1 – Gestion des Refresh Tokens)
+- `id` (UUID, PK, `gen_random_uuid()`)
+- `user_id` (UUID, FK `USERS.id`, NOT NULL, ON DELETE CASCADE, INDEX)
+- `token_hash` (VARCHAR(64), UNIQUE, NOT NULL, INDEX) : Empreinte SHA-256 hexadécimale du refresh token (le jeton en clair n'est **jamais** stocké en base)
+- `replaced_by_session_id` (UUID NULL, FK `USER_SESSIONS.id`, ON DELETE SET NULL) : Chaînage de rotation permettant de détecter la réutilisation d'un jeton déjà consommé
+- `ip_address` (VARCHAR(45) NULL)
+- `user_agent` (TEXT NULL)
+- `expires_at` (TIMESTAMP, NOT NULL, INDEX)
+- `revoked_at` (TIMESTAMP NULL)
+- `revocation_reason` (VARCHAR(50) NULL) : `'ROTATED'`, `'USER_LOGOUT'`, `'LOGOUT_ALL'`, `'REUSE_DETECTED'`, `'ADMIN_REVOKED'`
+- `created_at` (TIMESTAMP, default: `now()`)
 
 ---
 
@@ -772,16 +787,29 @@ Toutes les transitions insèrent systématiquement une ligne dans `APPLICATION_H
 
 ## 8. Sécurité, Confidentialité, Gestion des Fichiers & Conformité Loi 09-08 / CNDP
 
-### 8.1 Cycle de Vie des Jetons d'Authentification (Tokens)
-- **Access Token JWT** :
-  - Durée de vie : **15 minutes**.
-  - Payload minimaliste et sécurisé : `{ sub: userId, email: string, global_role: string, org_id?: string, org_role?: string }`.
-  - Signé avec l'algorithme asymétrique `RS256` (ou `HS256` en local avec clé secrète de 256 bits minimum).
-- **Refresh Token (Rotation & Révocation)** :
+### 8.1 Authentification, Mots de Passe et Cycle de Vie des Sessions (Décisions D1, D2, D5, D6, D7, D8)
+- **Politique de mot de passe et hachage (D7)** :
+  - Longueur : **minimum 12 caractères, maximum 128 caractères**. Les phrases de passe sont acceptées ; aucune règle de complexité artificielle (majuscule/chiffre/symbole imposés) n'est exigée.
+  - Hachage : **Argon2id** (paramètres mémoire/itérations conformes aux recommandations OWASP). Le mot de passe en clair n'est jamais journalisé ni retourné.
+  - Protection contre les tentatives répétées : limitation de débit (throttling) sur les endpoints d'authentification (`register`, `login`, `refresh`).
+- **Rôles autorisés à l'inscription publique (D2)** :
+  - L'endpoint public `POST /api/v1/auth/register` accepte **exclusivement** `CANDIDATE` et `ORGANIZATION_USER`.
+  - Toute tentative d'inscription avec `SYSTEM_ADMIN` (ou toute autre valeur) est rejetée par le backend (`400 Bad Request`), indépendamment du frontend. Les comptes `SYSTEM_ADMIN` sont créés uniquement par processus interne contrôlé (seed initial ou commande d'administration).
+- **Access Token JWT (D6)** :
+  - Durée de vie courte : **15 minutes** (900 secondes).
+  - Payload minimaliste : `{ sub: userId, email: string, global_role: string, org_id?: string, org_role?: string }`.
+  - Signature : **HS256** accepté pour le backend monolithique du MVP, sous condition stricte d'un secret aléatoire d'au moins **256 bits**, distinct par environnement et **jamais commité dans Git** (passage à `RS256` conservé en cible).
+- **Refresh Token & Table `USER_SESSIONS` (D1, D5)** :
   - Durée de vie : **7 jours**.
-  - Stocké exclusivement dans un cookie HTTP `Set-Cookie` avec les attributs : `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`.
-  - Haché cryptographiquement en base (`SHA-256`) dans la session utilisateur.
-  - **Refresh Token Rotation (RTR)** : À chaque renouvellement, l'ancien Refresh Token est immédiatement invalidé et remplacé par un nouveau. Toute tentative de réutilisation d'un ancien token déclenche la révocation immédiate de toutes les sessions actives du compte (détection de vol de session).
+  - Stocké exclusivement dans un cookie HTTP `Set-Cookie` : `HttpOnly; SameSite=Strict; Path=/api/v1/auth`, avec `Secure=false` en développement HTTP local et `Secure=true` en production HTTPS (D5). **Il est formellement interdit de stocker le refresh token dans `localStorage` ou `sessionStorage`.**
+  - En base PostgreSQL (`USER_SESSIONS`), seule l'empreinte `SHA-256` (`token_hash`) est enregistrée : **le refresh token n'est jamais stocké en clair**.
+  - **Rotation, détection de réutilisation et déconnexion globale** :
+    1. À chaque appel à `POST /api/v1/auth/refresh`, la session courante est marquée révoquée (`revocation_reason = 'ROTATED'`, `replaced_by_session_id` renseigné) et une nouvelle session est créée.
+    2. Si un refresh token déjà roté ou révoqué est présenté à nouveau (**détection de réutilisation**), **toutes les sessions actives de l'utilisateur sont immédiatement révoquées** (`revocation_reason = 'REUSE_DETECTED'`) et une entrée d'audit est enregistrée.
+    3. L'utilisateur peut révoquer sa session courante (`POST /api/v1/auth/logout`) ou **toutes ses sessions actives** (`POST /api/v1/auth/logout-all`).
+- **Services d'e-mail différés hors Sprint 2 (D8)** :
+  - Aucun service d'envoi d'e-mail n'est intégré au Sprint 2, et **aucun envoi réussi ne doit être simulé**.
+  - Dépendances fonctionnelles documentées pour intégration ultérieure (après validation CNDP sur l'hébergement/transfert) : vérification de l'adresse e-mail (`is_email_verified`), réinitialisation de mot de passe, notifications d'invitation du vivier et alertes de changement de statut de candidature.
 
 ### 8.2 Sécurisation du Stockage Documentaire (CVs et Diplômes)
 1. **Compartiment Object Storage (MinIO / S3) hermétique** :
@@ -839,7 +867,7 @@ Tous les endpoints respectent les standards REST, avec validation stricte des DT
   "termsAccepted": true
 }
 ```
-- **Règles de validation** : `email` valide et unique, `password` $\ge 8$ caractères avec majuscule, chiffre et caractère spécial, `termsAccepted = true`.
+- **Règles de validation (D2, D7)** : `email` valide et unique, `password` de **12 à 128 caractères** (phrases de passe acceptées, sans complexité artificielle obligatoire, haché avec **Argon2id**), `globalRole` restreint à `'CANDIDATE' | 'ORGANIZATION_USER'` (`SYSTEM_ADMIN` interdit sur cette route publique), `termsAccepted = true`.
 - **Réponse (`201 Created`)** :
 ```json
 {
@@ -1175,7 +1203,15 @@ flowchart TD
 ### 11.3 Critères d'Acceptation et Definition of Done (DoD)
 Pour qu'une tâche ou un module soit déclaré officiellement **terminé (Done)** au sein d'un sprint :
 1. **Code & Typage** : 100% TypeScript strict, zéro avertissement au linter (`eslint`), zéro type `any`.
-2. **Couverture de Tests** : Tests unitaires rédigés avec une couverture minimale de **85% sur les services métier** (notamment sur le moteur de matching et les transitions de statuts).
+2. **Couverture de Tests (Seuil de 85 % et périmètre explicite)** :
+   - **Métriques exigées** : `statements >= 85%`, `lines >= 85%`, `functions >= 85%` et `branches >= 80%` (vérifiées automatiquement par `npm run test:cov`).
+   - **Périmètre mesuré** : tous les services, fournisseurs, guards et contrôleurs applicatifs sous `src/**/*.ts`.
+   - **Exclusions justifiées** :
+     - `src/main.ts` et `src/**/*.module.ts` : code déclaratif d'assemblage et d'amorçage NestJS sans logique métier ;
+     - `src/**/*.dto.ts`, `src/**/*.types.ts`, `src/**/*.interface.ts` : contrats de typage et décorateurs de validation déclaratifs ;
+     - `src/database/prisma.service.ts` et indicateur `prisma.health.ts` : adaptateurs d'infrastructure vers le client Prisma généré ;
+     - `src/**/s3-storage.provider.ts` : adaptateur SDK S3/MinIO non exécutable tant que MinIO est reporté (décision Sprint 1 / B-01) ;
+     - `src/**/*.spec.ts` : fichiers de tests eux-mêmes.
 3. **Documentation API** : DTOs validés avec `class-validator` et décorateurs Swagger OpenAPI complets.
 4. **Revue de Code** : Pull Request relue et formellement approuvée par au moins **1 pair développeur**.
 5. **Intégration Continue (CI)** : Pipeline GitHub Actions vert (build Docker, lint, tests unitaires et intégration passés avec succès).
@@ -1208,7 +1244,7 @@ Avant tout engagement d'initialisation technique, les arbitrages suivants sont f
 | Réf. | Objet de la Décision | Option Recommandée | Option Alternative | Justification & Impact | Statut |
 | :---: | :--- | :--- | :--- | :--- | :---: |
 | **DEC-01** | **Validation du Référentiel des 6 Spécialités** | **Adopter les 6 spécialités cibles** centrées sur la psychologie de l'éducation et l'accompagnement neurodéveloppemental. | Élargir dès le MVP à l'orthophonie et à la psychomotricité. | Le recentrage consolide la promesse de valeur du MVP sans disperser l'effort de référencement. | *En attente* |
-| **DEC-02** | **Politique d'Anonymisation par Défaut dans le Vivier** | **Profil public par défaut avec option d'anonymisation** (`is_anonymized_in_pool = false` par défaut, activable par le candidat). | Anonymisation systématique obligatoire de tous les candidats (`true` par défaut). | L'option recommandée offre le meilleur compromis d'engagement pour les recruteurs tout en respectant le choix de discrétion. | *En attente* |
+| **DEC-02** | **Politique de Confidentialité et d'Anonymisation par Défaut (D4)** | **Profil privé par défaut ; participation au vivier facultative (opt-in) ; anonymisation par défaut dans le vivier** (`is_anonymized_in_pool = true` par défaut). Divulgation de l'identité et des documents soumise aux autorisations explicites. | Profil public par défaut (`false`). | Protection maximale de la vie privée des étudiants et diplômés dès l'inscription, cohérente avec le schéma Prisma et l'API. | **Validé (D4)** |
 | **DEC-03** | **Délai d'Expiration des Invitations du Vivier** | **Fixer le délai de validité à 14 jours calendaires** avant expiration automatique (`INVITATION_EXPIRED`). | Fixer un délai court de 7 jours ou un délai long de 30 jours. | 14 jours correspondent au rythme moyen de consultation des étudiants sans bloquer indûment le vivier des structures. | *En attente* |
 | **DEC-04** | **Niveau de Contrôle des Structures Recruteuses** | **Validation administrative préalable obligatoire (ICE / Récépissé)** avant autorisation d'accès au vivier. | Inscription libre et activation immédiate avec contrôle a posteriori. | L'option recommandée protège les étudiants contre les structures fictives ou la collecte illicite de CVs. | *En attente* |
 | **DEC-05** | **Calendrier et Démarche Réglementaire CNDP** | **Initier la déclaration formelle CNDP en amont du Sprint 4** en parallèle du développement. | Reporter la déclaration formelle à la phase de recette finale (Sprint 6). | Anticiper la démarche auprès de la CNDP prévient tout blocage administratif lors de l'ouverture du pilote. | *En attente* |

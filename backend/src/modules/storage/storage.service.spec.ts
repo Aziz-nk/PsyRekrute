@@ -34,8 +34,8 @@ describe('Stockage – abstraction (provider local, dev uniquement)', () => {
     await expect(service.savePdf('x/a.pdf', Buffer.from('MZ-executable'))).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('refuse un fichier trop volumineux (> 10 Mo)', async () => {
-    const big = Buffer.concat([pdf(), Buffer.alloc(10 * 1024 * 1024 + 1)]);
+  it('refuse un fichier trop volumineux (> 5 Mo, DCTF §8.2 / D3)', async () => {
+    const big = Buffer.concat([pdf(), Buffer.alloc(5 * 1024 * 1024 + 1)]);
     await expect(service.savePdf('x/big.pdf', big)).rejects.toBeInstanceOf(BadRequestException);
   });
 

@@ -15,7 +15,7 @@ import type { Request, Response } from 'express';
 import { STORAGE_PROVIDER, StorageProvider } from './storage.types';
 import { LocalStorageProvider } from './local-storage.provider';
 
-const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_BYTES = 5 * 1024 * 1024; // 5 Mo strict (DCTF §8.2 / D3)
 
 /** Endpoints actifs UNIQUEMENT quand STORAGE_DRIVER=local. Renvoient 404 sinon. URLs signees HMAC + expiration. */
 @ApiExcludeController()
