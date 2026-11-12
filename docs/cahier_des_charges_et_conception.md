@@ -11,6 +11,7 @@
 | **v2.0** | 2026-11-09 | Direction Technique | Archivée | Complément officiel : trilinguisme (FR, AR RTL, EN), 12 régions du Maroc, matching pondéré, conformité Loi 09-08 / CNDP. |
 | **v3.0** | 2026-11-09 | Direction Technique | Archivée | Monolithe modulaire, Prisma, Docker, cadrage psychologie de l'éducation, modèle relationnel enrichi. |
 | **v3.1** | 2026-11-09 | Direction Technique / Équipe Antigravity | **Soumise à validation** | **Révision majeure suite à la revue approfondie du coordinateur :**<br>• Harmonisation stricte du modèle de données (23 entités exactes, relations, cascades et index corrigés).<br>• Matrice RBAC clarifiée : dissociation étanche entre `GlobalRole` et `OrgMemberRole`.<br>• Refonte mathématique intégrale de l'algorithme de matching : formules formelles pour chaque critère, élimination de la contradiction sur les compétences souhaitables, bonus de vérification borné à 100%, matrice ontologique des compétences connexes.<br>• Trois cas chiffrés complets et reproductibles par des tests unitaires (Observation, PFE, Emploi).<br>• Machine à états finis (FSM) d'application complète avec matrice des transitions autorisées/interdites, expiration des invitations et règles de réinvitation.<br>• Spécifications détaillées de sécurité : cycle de vie des refresh tokens, URLs signées S3 temporaires, validation des magic bytes PDF, logs d'audit sensibles.<br>• Cadrage juridique rigoureux de la Loi 09-08 (durée de conservation de 24 mois requalifiée en choix organisationnel d'entreprise et identification des démarches CNDP soumises à avis juridique).<br>• Contrats d'API exhaustifs avec DTOs, validations, codes d'erreurs et pagination.<br>• Environnement Docker harmonisé sans secrets en clair.<br>• Organisation collaborative des 5 développeurs avec matrice anti-blocage, contrats d'interface et Definition of Done (DoD). |
+| **v3.1.1** | 2026-11-12 | Direction Technique | **Précision validée par le coordinateur** | §5.2.1 : distinction diplôme **obtenu** / formation **en cours** et crédit d'inscription par type d'offre (emploi 0, PFE 85, observation 100). Exemples Cas 1, 2, 3 reformulés ; scores (100,00 / 93,25 / 82,33) et pondérations inchangés. |
 
 ---
 
@@ -505,11 +506,24 @@ Avec $\sum W_i = 1.00$ ($100\%$).
 
 #### 1. Score Formation & Spécialité ($S_{form}$)
 - **Données requises** : `CANDIDATE_EDUCATION` (`degree_level`, `specialty_id`, `is_currently_enrolled`), `JOB_OFFERS` (`required_degree_level`, `target_specialty_id`).
-- **Échelle des niveaux** : Bac+3 ($V=1$), Bac+5 / Master ($V=2$), Doctorat / Diplôme État ($V=3$).
-- **Calcul du niveau** :
-  - Si $V_{cand} \ge V_{offre}$ : $Score_{niveau} = 100$.
-  - Si $V_{cand} = V_{offre} - 1$ et étudiant en cours d'année diplômante : $Score_{niveau} = 85$.
-  - Si $V_{cand} < V_{offre} - 1$ : $Score_{niveau} = 40$.
+- **Échelle des niveaux** : Bac+3 ($V=1$), Bac+5 / Master ($V=2$), Doctorat / Diplôme État ($V=3$). $V=0$ : aucun diplôme supérieur obtenu.
+- **Distinction obligatoire (précision v3.1.1, décision du coordinateur)** : *un diplôme en cours n'est jamais un diplôme obtenu.* Deux données distinctes sont calculées à partir de `CANDIDATE_EDUCATION` :
+  - $V_{obt}$ : niveau du **plus haut diplôme obtenu** (lignes avec `is_currently_enrolled = false`) ;
+  - $V_{ins}$ : niveau de la **formation actuellement suivie** (lignes avec `is_currently_enrolled = true`), $0$ si aucune inscription.
+- **Crédit d'inscription $c$ selon le type d'offre** (aucune pondération n'est modifiée) :
+
+  | Type d'offre | $c$ | Règle |
+  | :--- | :---: | :--- |
+  | `EMPLOI` | 0 | Diplôme **obtenu** exigé : une formation en cours ne satisfait pas l'exigence. |
+  | `STAGE_PFE` | 85 | Une inscription dans le niveau exigé est acceptée, créditée à 85 (diplôme non encore obtenu). |
+  | `STAGE_OBSERVATION` | 100 | Le public cible est en cours de cursus : l'inscription dans le niveau exigé vaut 100. |
+
+  $c$ est porté par l'offre (`enrollmentCreditScore`) ; une offre peut le fixer à 0 pour exiger un diplôme obtenu.
+- **Calcul du niveau** (remplace la règle « $V_{cand} = V_{offre}-1$ et étudiant en cours → 85 ») :
+  - Si $V_{obt} \ge V_{offre}$ : $Score_{niveau} = 100$.
+  - Sinon, si $c > 0$ et $V_{ins} \ge V_{offre}$ : $Score_{niveau} = c$ (signalé « diplôme en cours d'obtention »).
+  - Sinon : $Score_{niveau} = 40$ (si $V_{ins} \ge V_{offre}$ sans crédit : motif « diplôme requis non obtenu »).
+  - Une inscription ne dégrade jamais un diplôme obtenu. Ce critère ne déclenche aucun rejet automatique.
 - **Calcul de la spécialité (Arbre taxonomique `REF_SPECIALTIES`)** :
   - Même spécialité (`specialty_id` identique) : $\sigma_{spec} = 1.00$.
   - Spécialité sœur (même `parent_id`) : $\sigma_{spec} = 0.75$.
@@ -517,7 +531,7 @@ Avec $\sum W_i = 1.00$ ($100\%$).
   - Autre spécialité du domaine : $\sigma_{spec} = 0.25$.
 - **Formule exacte** :
   $$S_{form} = Score_{niveau} \times \sigma_{spec}$$
-- **Données manquantes** : Si aucune formation n'est renseignée, $S_{form} = 0$ et `mandatory_criteria_satisfied = false`.
+- **Données manquantes** : Si aucune formation (ni obtenue, ni en cours) n'est renseignée, $S_{form} = 0$ et `mandatory_criteria_satisfied = false`.
 
 ---
 
@@ -612,7 +626,7 @@ Avec $\sum W_i = 1.00$ ($100\%$).
   - Langues obligatoires : Darija (`LANGUE_MATERNELLE`), Français (`COURANT_PROFESSIONNEL`).
   - Date début : Immédiat.
 - **Candidat Fictif #CAND-OBS-01 (Kenza E.)** :
-  - Formation : L3 Psychologie en cours à Casablanca ($V_{cand}=1$, $\sigma_{spec}=1.0$) $\rightarrow S_{form} = 100 \times 1.0 = 100$.
+  - Formation : L3 Psychologie **en cours** à Casablanca ($V_{obt}=0$, $V_{ins}=1 \ge 1$, offre de type stage d'observation : $c=100$, $\sigma_{spec}=1.0$) $\rightarrow S_{form} = 100 \times 1.0 = 100$.
   - Compétences : Notions TSA déclarées ($L_{cand}=1, L_{req}=1$) $\rightarrow Score(TSA) = 100$.
     - $S_{skills, oblig} = 100$.
     - $Bonus_{souhait} = \min(15, 100 \times 0.15) = 15$.
@@ -639,7 +653,7 @@ $$S_{total} = 35.00 + 15.00 + 5.00 + 25.00 + 10.00 + 10.00 = \mathbf{100.00\%}$$
   - Langues obligatoires : Darija (`COURANT_PROFESSIONNEL`), Français (`COURANT_PROFESSIONNEL`).
   - Date début : 01 Février.
 - **Candidat Fictif #CAND-PFE-02 (Youssef M.)** :
-  - Formation : Master 2 Neuropsychologie en cours ($Score_{niveau}=85$, $\sigma_{spec}=1.0$) $\rightarrow S_{form} = 85 \times 1.0 = 85.00$.
+  - Formation : Licence obtenue ($V_{obt}=1$) et Master 2 Neuropsychologie **en cours** ($V_{ins}=2 \ge 2$, offre PFE : $c=85$, $\sigma_{spec}=1.0$). Le Master n'étant pas obtenu ($V_{obt}=1 < 2$), le crédit PFE s'applique $\rightarrow S_{form} = 85 \times 1.0 = 85.00$.
   - Compétences :
     - WISC-V : Niveau `AUTONOME` ($L=3$), **vérifié par attestation** ($\beta = 0.15$).
       $$Score(WISC) = \min(100, 100 \times 1.15) = 100$$
@@ -670,7 +684,7 @@ $$S_{total} = 25.50 + 25.00 + 15.00 + 12.75 + 10.00 + 5.00 = \mathbf{93.25\%}$$
   - Langues obligatoires : Darija (`COURANT_PROFESSIONNEL`), Français (`COURANT_PROFESSIONNEL`).
   - Date début : Immédiat.
 - **Candidat Fictif #CAND-JOB-03 (Salma T.)** :
-  - Formation : Diplôme d'État Éducatrice Spécialisée ($V_{cand}=1 \ge 1$, spécialité sœur psycho-éducation $\sigma_{spec}=0.75$).
+  - Formation : Diplôme d'État Éducatrice Spécialisée **obtenu** ($V_{obt}=1 \ge 1$, spécialité sœur psycho-éducation $\sigma_{spec}=0.75$).
     $$S_{form} = 100 \times 0.75 = 75.00$$
   - Compétences :
     - TEACCH : `EXPERT` ($L=4 \ge 3$), **vérifié** $\rightarrow Score = 100$.

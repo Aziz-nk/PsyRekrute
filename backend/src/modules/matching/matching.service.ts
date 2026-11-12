@@ -10,9 +10,16 @@ export interface MatchingWeights {
 }
 
 export interface CandidateData {
-  /** Plus haut diplome OBTENU (un diplome en cours ne compte pas) : 0 = aucune formation, 1 = BAC_3, 2 = BAC_5, 3 = BAC_8 */
+  /**
+   * Plus haut diplome OBTENU (un diplome en cours ne compte JAMAIS ici).
+   * 0 = aucun diplome superieur obtenu, 1 = BAC_3, 2 = BAC_5, 3 = BAC_8.
+   */
   degreeLevelValue: number;
-  isCurrentlyEnrolled: boolean;
+  /**
+   * Niveau de la formation ACTUELLEMENT SUIVIE (inscription en cours). 0 = aucune inscription.
+   * Distinct du diplome obtenu : il ne satisfait une exigence que si l'offre l'accepte (voir OfferData.enrollmentCreditScore).
+   */
+  enrolledLevelValue: number;
   specialtyTaxonomyFactor: number; // 1.0 (exact), 0.75 (sister), 0.50 (cousin), 0.25 (other)
   skills: Array<{
     code: string;
@@ -35,6 +42,12 @@ export interface CandidateData {
 
 export interface OfferData {
   requiredDegreeLevelValue: number;
+  /**
+   * Credit accorde a un candidat INSCRIT dans le niveau demande mais sans diplome obtenu (0..100).
+   * Absent ou 0 = l'offre exige un diplome obtenu (cas des emplois).
+   * Valeurs par defaut par type d'offre : voir ENROLLMENT_CREDIT_BY_OFFER_TYPE.
+   */
+  enrollmentCreditScore?: number;
   requiredSkills: Array<{
     code: string;
     minRequiredLevel: number;
@@ -66,6 +79,18 @@ export interface MatchScoreResult {
   };
 }
 
+/**
+ * Credit d'une INSCRIPTION dans le niveau exige (sans diplome obtenu), par type d'offre.
+ * Derive des exemples chiffres du DCTF : Cas 1 (stage d'observation, L3 en cours => 100)
+ * et Cas 2 (PFE, Master 2 en cours => 85). 0 = diplome obtenu exige (emploi).
+ * Les ponderations par dimension ne sont PAS concernees.
+ */
+export const ENROLLMENT_CREDIT_BY_OFFER_TYPE = {
+  STAGE_OBSERVATION: 100,
+  STAGE_PFE: 85,
+  EMPLOI: 0,
+} as const;
+
 @Injectable()
 export class MatchingService {
   calculateMatchScore(
@@ -77,18 +102,21 @@ export class MatchingService {
     const gaps: string[] = [];
     let mandatoryCriteriaSatisfied = true;
 
-    // 1. FORMATION
+    // 1. FORMATION (DCTF v3.1.1 §5.2.1 : diplome obtenu != formation en cours)
+    const obtained = candidate.degreeLevelValue;
+    const enrolled = candidate.enrolledLevelValue;
+    const enrollmentCredit = Math.max(0, Math.min(100, offer.enrollmentCreditScore ?? 0));
     let scoreNiveau = 40;
-    if (candidate.degreeLevelValue >= offer.requiredDegreeLevelValue) {
+    if (obtained >= offer.requiredDegreeLevelValue) {
       scoreNiveau = 100;
-    } else if (
-      candidate.degreeLevelValue === offer.requiredDegreeLevelValue - 1 &&
-      candidate.isCurrentlyEnrolled
-    ) {
-      scoreNiveau = 85;
+    } else if (enrollmentCredit > 0 && enrolled >= offer.requiredDegreeLevelValue) {
+      scoreNiveau = enrollmentCredit; // inscription dans le niveau exige, acceptee par l'offre
+      gaps.push('Diplôme requis en cours d\'obtention (inscription dans le niveau demandé)');
+    } else if (enrolled >= offer.requiredDegreeLevelValue) {
+      gaps.push('Diplôme requis non obtenu : une formation en cours ne satisfait pas cette offre');
     }
     let scoreFormation = Number((scoreNiveau * candidate.specialtyTaxonomyFactor).toFixed(2));
-    if (candidate.degreeLevelValue <= 0) {
+    if (obtained <= 0 && enrolled <= 0) {
       // DCTF v3.1 §5.2.1 : aucune formation renseignee => S_form = 0 et critere obligatoire non satisfait
       scoreFormation = 0;
       mandatoryCriteriaSatisfied = false;

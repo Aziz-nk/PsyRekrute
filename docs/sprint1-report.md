@@ -1,96 +1,101 @@
-﻿# Sprint 1 â€“ Rapport de validation
+# Sprint 1 – Rapport de validation
 
-> Statut : **en attente de validation explicite du coordinateur.** Le Sprint 2 n'est pas commencÃ©.
-> Date des vÃ©rifications : 2026-11-12. Machine : Windows, un seul PC, Docker non opÃ©rationnel (WSL absent).
+> **Statut réel : socle technique validé par le coordinateur AVEC RÉSERVES (2026-11-12). Le Sprint 1 n'est PAS entièrement validé sur ses 11 critères :**
+> **9 critères validés · 1 partiellement validé (i18n) · 1 reporté (MinIO) · Docker Compose non testé donc non validé.**
+> Date des vérifications : 2026-11-12. Machine : Windows, un seul PC, Docker non opérationnel (WSL absent).
 
-## 1. SynthÃ¨se des critÃ¨res
+## 1. Synthèse des critères
 
-| # | CritÃ¨re | Statut | Preuve |
+| # | Critère | Statut | Preuve |
 |---|---|---|---|
-| 1 | Le projet dÃ©marre sur le PC | âœ… ValidÃ© (hors Docker) | PostgreSQL, backend :4000, frontend :3000 dÃ©marrÃ©s |
-| 2 | PostgreSQL accepte les connexions | âœ… ValidÃ© | `pg_isready` â†’ *accepting connections* ; PostgreSQL 16.6 |
-| 3 | MinIO avec stockage persistant | â¸ï¸ **ReportÃ©** | Aucun binaire Windows officiel ; Go absent ; Docker indisponible |
-| 4 | Prisma â†” PostgreSQL | âœ… ValidÃ© | `/health` â†’ `postgresql: up` ; seed exÃ©cutÃ© |
-| 5 | Migrations | âœ… ValidÃ© | Migration `init` appliquÃ©e, 23 tables |
-| 6 | NestJS dÃ©marre sans erreur | âœ… ValidÃ© | `GET http://localhost:4000/api/v1/health` â†’ 200 `{"status":"ok"}` |
-| 7 | Next.js dÃ©marre sans erreur | âœ… ValidÃ© | `GET http://localhost:3000/fr` â†’ 200 |
-| 8 | Frontend â†” backend | âœ… ValidÃ© en navigateur rÃ©el | voir Â§3 |
-| 9 | i18n FR/AR/EN | âœ… ValidÃ© (initialisation) | `fr`/`en` : `dir=ltr` ; `ar` : `dir=rtl` ; textes traduits affichÃ©s. Les messages couvrent seulement l'accueil, l'auth, les erreurs et le health : le reste est Ã  faire dans les sprints suivants |
-| 10 | Tests de base | âœ… ValidÃ© | 42/42 (voir Â§4) |
-| 11 | Instructions documentÃ©es | âœ… Ce fichier | Â§6 |
+| 1 | Le projet démarre sur le PC | ✅ Validé (hors Docker) | PostgreSQL, backend :4000, frontend :3000 démarrés |
+| 2 | PostgreSQL accepte les connexions | ✅ Validé | `pg_isready` → *accepting connections* ; PostgreSQL 16.6 |
+| 3 | MinIO avec stockage persistant | ⏸️ **Reporté** | Aucun binaire Windows officiel ; Go absent ; Docker indisponible |
+| 4 | Prisma ↔ PostgreSQL | ✅ Validé | `/health` → `postgresql: up` ; seed exécuté |
+| 5 | Migrations | ✅ Validé | Migration `init` appliquée, 23 tables |
+| 6 | NestJS démarre sans erreur | ✅ Validé | `GET http://localhost:4000/api/v1/health` → 200 `{"status":"ok"}` |
+| 7 | Next.js démarre sans erreur | ✅ Validé | `GET http://localhost:3000/fr` → 200 |
+| 8 | Frontend ↔ backend | ✅ Validé en navigateur réel | voir §3 |
+| 9 | i18n FR/AR/EN | ✅ Validé (initialisation) | `fr`/`en` : `dir=ltr` ; `ar` : `dir=rtl` ; textes traduits affichés. Les messages couvrent seulement l'accueil, l'auth, les erreurs et le health : le reste est à faire dans les sprints suivants |
+| 10 | Tests de base | ✅ Validé | 42/42 (voir §4) |
+| 11 | Instructions documentées | ✅ Ce fichier | §6 |
 
-**Partiellement validÃ© :** #1 et #6/#7 uniquement hors conteneurs ; Docker Compose non exÃ©cutÃ© (Â§5) ; i18n limitÃ©e Ã  la structure et aux Ã©crans initiaux.
-**ReportÃ© :** #3 MinIO (dÃ©cision du coordinateur : option 3 â€“ MinIO reste la cible, stockage local en dev).
+**Comptage :** validés = #1, 2, 4, 5, 6, 7, 8, 10, 11 (9) ; partiel = #9 (i18n : structure et écrans initiaux seulement) ; reporté = #3 (MinIO).
+**Réserves :** #1/#6/#7 validés **hors conteneurs uniquement** ; **Docker Compose non testé, donc non validé** (§5).
+**Reporté :** #3 MinIO (décision du coordinateur : option 3 – MinIO reste la cible, stockage local en dev).
 
 ## 2. Stockage : abstraction et limites
 
-**Architecture** (`backend/src/modules/storage/`) : `StorageService` (faÃ§ade mÃ©tier : nommage des clÃ©s, PDF uniquement, 10 Mo max) â†’ interface `StorageProvider` â†’ `S3StorageProvider` (MinIO / S3) ou `LocalStorageProvider` (disque).
-Le choix se fait **uniquement** par `STORAGE_DRIVER=local|s3` (dÃ©faut `local`). Les modules mÃ©tier n'injectent que `StorageService` : le passage Ã  MinIO ne demande aucune modification du code mÃ©tier.
+**Architecture** (`backend/src/modules/storage/`) : `StorageService` (façade métier : nommage des clés, PDF uniquement, 10 Mo max) → interface `StorageProvider` → `S3StorageProvider` (MinIO / S3) ou `LocalStorageProvider` (disque).
+Le choix se fait **uniquement** par `STORAGE_DRIVER=local|s3` (défaut `local`). Les modules métier n'injectent que `StorageService` : le passage à MinIO ne demande aucune modification du code métier.
 
-> âš ï¸ Correction d'une faiblesse de la premiÃ¨re version : le Â« repli local Â» prÃ©cÃ©dent n'Ã©tait pas rÃ©el (la signature S3 est calculÃ©e hors-ligne et ne lÃ¨ve jamais d'erreur sans MinIO, et les routes locales n'existaient pas). Il est remplacÃ© par un vrai fournisseur local.
+> ⚠️ Correction d'une faiblesse de la première version : le « repli local » précédent n'était pas réel (la signature S3 est calculée hors-ligne et ne lève jamais d'erreur sans MinIO, et les routes locales n'existaient pas). Il est remplacé par un vrai fournisseur local.
 
 **Limites du stockage local (dev uniquement) :**
-- Fichiers sur le disque du backend (`backend/local-storage/`, ignorÃ© par Git) : ni rÃ©plication, ni sauvegarde, ni chiffrement au repos, ni antivirus.
+- Fichiers sur le disque du backend (`backend/local-storage/`, ignoré par Git) : ni réplication, ni sauvegarde, ni chiffrement au repos, ni antivirus.
 - Pas de persistance garantie hors de cette machine ; non partageable entre instances.
-- URLs temporaires HMAC (900 s) servies par l'API elle-mÃªme (pas de CDN, pas de limitation de dÃ©bit), secret = `STORAGE_LOCAL_SECRET` ou `JWT_ACCESS_SECRET`.
-- Aucune authentification applicative encore (module Auth = Sprint suivant) : **ne jamais y dÃ©poser de vrais documents.**
-- **RefusÃ© en production** : le backend ne dÃ©marre pas avec `NODE_ENV=production` et `STORAGE_DRIVER=local`.
-- Le chemin `S3StorageProvider` est Ã©crit mais **jamais exÃ©cutÃ© contre un vrai MinIO** (non testÃ©).
+- URLs temporaires HMAC (900 s) servies par l'API elle-même (pas de CDN, pas de limitation de débit), secret = `STORAGE_LOCAL_SECRET` ou `JWT_ACCESS_SECRET`.
+- Aucune authentification applicative encore (module Auth = Sprint suivant) : **ne jamais y déposer de vrais documents.**
+- **Refusé en production** : le backend ne démarre pas avec `NODE_ENV=production` et `STORAGE_DRIVER=local`.
+- Le chemin `S3StorageProvider` est écrit mais **jamais exécuté contre un vrai MinIO** (non testé).
 
-## 3. VÃ©rification frontend â†’ backend (navigateur rÃ©el)
+## 3. Vérification frontend → backend (navigateur réel)
 
-Voir l'annexe A (rÃ©sultats bruts de la vÃ©rification navigateur).
+Voir l'annexe A (résultats bruts de la vérification navigateur).
 
-## 4. Tests exÃ©cutÃ©s (Jest, backend)
+## 4. Tests exécutés (Jest, backend)
 
-Commande : `cd backend && npx.cmd jest --no-coverage --verbose` â†’ **3 suites, 42 tests, 42 rÃ©ussis.**
+Commande : `cd backend && npx.cmd jest --no-coverage --verbose` → **3 suites, 52 tests, 52 réussis** (après la précision diplômes du §4 bis).
 
 | Suite | Tests | Contenu |
 |---|---|---|
-| `matching.service.spec.ts` | 3 | Vecteurs d'or DCTF Â§6 : Cas 1 = 100,00 ; Cas 2 = 93,25 ; Cas 3 = 82,33 |
-| `matching.edge-cases.spec.ts` | 31 | Formation, compÃ©tences (vÃ©rification â‰¤ 100, souhaitables absentes, plafond), expÃ©rience, localisation, langues, bornes de disponibilitÃ© (30 j â†’ 55 ; 31 j â†’ 40), total âˆˆ [0,100], aucun rejet automatique, absence de champs discriminants, dÃ©terminisme |
-| `storage.service.spec.ts` | 8 | Aller-retour, PDF only, 10 Mo, path traversal, signature valide/falsifiÃ©e/expirÃ©e/mauvaise mÃ©thode |
+| `matching.service.spec.ts` | 3 | Vecteurs d'or DCTF §6 : Cas 1 = 100,00 ; Cas 2 = 93,25 ; Cas 3 = 82,33 |
+| `matching.edge-cases.spec.ts` | 41 | Formation (diplôme obtenu vs en cours, par type d'offre), compétences (vérification ≤ 100, souhaitables absentes, plafond), expérience, localisation, langues, bornes de disponibilité (30 j → 55 ; 31 j → 40), total ∈ [0,100], aucun rejet automatique, absence de champs discriminants, déterminisme |
+| `storage.service.spec.ts` | 8 | Aller-retour, PDF only, 10 Mo, path traversal, signature valide/falsifiée/expirée/mauvaise méthode |
 
-ContrÃ´les manuels : `tsc --noEmit` backend et frontend sans erreur ; `PUT`/`GET /storage/local/object` avec signature invalide â†’ 403.
-Non couvert : tests d'intÃ©gration base de donnÃ©es, e2e API, composant React, appel rÃ©el Ã  MinIO.
+Contrôles manuels : `tsc --noEmit` backend et frontend sans erreur ; `PUT`/`GET /storage/local/object` avec signature invalide → 403.
+Non couvert : tests d'intégration base de données, e2e API, composant React, appel réel à MinIO.
 
-### Matching â€“ Cas 2 (PFE) : dÃ©cision et correction
-- Le DCTF Â§6 Cas 2 : offre Â« **Bac+5 / Master requis** Â», candidat Â« **Master 2 en cours** Â», `Score_niveau = 85`.
-- AppliquÃ©e littÃ©ralement, la rÃ¨gle Â§5.2 donne 100 si V_cand = V_offre. L'exemple n'est cohÃ©rent que si **V_cand = plus haut diplÃ´me *obtenu*** (Licence, V=1 = V_offre âˆ’ 1, Ã©tudiant en cours â†’ 85).
-- **Le niveau 3 que j'avais mis dans le test prÃ©cÃ©dent Ã©tait une erreur** : il contredisait Â« Bac+5 requis Â» et faisait passer le test artificiellement. Il est annulÃ© (offre = 2, candidat = 1 + en cours).
-- Aucune rÃ¨gle mÃ©tier modifiÃ©e. PrÃ©cision de sÃ©mantique ajoutÃ©e dans le code (`degreeLevelValue` = diplÃ´me obtenu). Seul ajout au moteur : Â« aucune formation â†’ S_form = 0 et critÃ¨re obligatoire non satisfait Â», rÃ¨gle dÃ©jÃ  Ã©crite au DCTF Â§5.2.1 mais non implÃ©mentÃ©e.
-- **Point Ã  confirmer par le coordinateur** : le DCTF devrait prÃ©ciser noir sur blanc que le niveau d'un diplÃ´me *en cours* n'est pas comptÃ© (le candidat est alors saisi avec le niveau prÃ©cÃ©dent + `is_currently_enrolled`).
+### 4 bis. Matching – diplôme obtenu vs formation en cours (décision du coordinateur, DCTF v3.1.1)
+- Règle confirmée : **un diplôme en cours n'est pas un diplôme obtenu.** Le moteur reçoit deux données distinctes : `degreeLevelValue` (plus haut diplôme **obtenu**) et `enrolledLevelValue` (niveau de la formation **suivie**, 0 si aucune).
+- Le crédit d'une inscription dépend du **type d'offre** (`ENROLLMENT_CREDIT_BY_OFFER_TYPE`) : **EMPLOI = 0** (diplôme obtenu exigé), **STAGE_PFE = 85**, **STAGE_OBSERVATION = 100**. Pondérations des 6 dimensions inchangées.
+- Exemple « Master 2 en cours » (Cas 2, PFE, offre Bac+5) : Licence obtenue (V_obt = 1), inscrit en Master 2 (V_ins = 2 ≥ 2) → crédit PFE **85** → formation 85, total **93,25** (inchangé). Le même candidat sur un **emploi** Bac+5 obtient 40 avec le motif « diplôme requis non obtenu ».
+- Historique : mon changement précédent (offre « niveau 3 ») était une erreur et a été annulé ; la règle ancienne « V_cand = V_offre − 1 et étudiant en cours → 85 » est **remplacée** par la règle ci-dessus.
+- **Choix à valider** : le crédit 100 du stage d'observation et le crédit 85 du PFE sont **déduits des deux exemples chiffrés du DCTF** (Cas 1 : L3 en cours → 100 ; Cas 2 : Master 2 en cours → 85). Le DCTF §5.2.1 les formalise désormais ; ils sont modifiables par offre.
+- Non fait : l'ajout d'un champ `enrollment_credit_score` (ou dérivé du `offer_type`) sur `JOB_OFFERS` n'est pas encore dans le schéma Prisma ; il sera traité avec le module Offres.
+- Le calcul de V_obt / V_ins à partir de `CANDIDATE_EDUCATION` (`is_currently_enrolled`) sera implémenté avec le module Candidats.
+- Le critère de diplôme **ne déclenche aucun rejet automatique** (un score est toujours calculé ; seul « aucune formation » active le drapeau obligatoire, règle déjà au DCTF).
 
 ## 5. Revue Docker Compose (`docker/docker-compose.yml`)
 
-**Statut : NON VALIDÃ‰.** `docker compose config` (syntaxe) rÃ©ussit ; aucun conteneur n'a Ã©tÃ© dÃ©marrÃ© (`docker ps` â†’ moteur indisponible). Ne pas considÃ©rer Docker comme opÃ©rationnel avant un `docker compose up` rÃ©ussi.
+**Statut : NON VALIDÉ.** `docker compose config` (syntaxe) réussit ; aucun conteneur n'a été démarré (`docker ps` → moteur indisponible). Ne pas considérer Docker comme opérationnel avant un `docker compose up` réussi.
 
-ProblÃ¨mes trouvÃ©s et corrigÃ©s (par lecture, non exÃ©cutÃ©s) :
-| Sujet | ProblÃ¨me | Correction |
+Problèmes trouvés et corrigés (par lecture, non exécutés) :
+| Sujet | Problème | Correction |
 |---|---|---|
-| Dockerfiles | `backend/Dockerfile` et `frontend/Dockerfile` **n'existaient pas** â†’ `build` Ã©chouait | CrÃ©Ã©s (dev, node 20 bookworm-slim, openssl pour Prisma) |
-| Bucket | Aucun bucket crÃ©Ã© â†’ tout upload Ã©choue (`NoSuchBucket`) | Service `minio-init` (`mc mb`, accÃ¨s anonyme dÃ©sactivÃ©) |
-| Migrations | Jamais appliquÃ©es dans le conteneur | `prisma migrate deploy` avant le dÃ©marrage |
+| Dockerfiles | `backend/Dockerfile` et `frontend/Dockerfile` **n'existaient pas** → `build` échouait | Créés (dev, node 20 bookworm-slim, openssl pour Prisma) |
+| Bucket | Aucun bucket créé → tout upload échoue (`NoSuchBucket`) | Service `minio-init` (`mc mb`, accès anonyme désactivé) |
+| Migrations | Jamais appliquées dans le conteneur | `prisma migrate deploy` avant le démarrage |
 | `STORAGE_DRIVER` | Absent | `s3` dans le conteneur backend |
-| `DATABASE_URL` | Correcte (hÃ´te `postgres`) ; mot de passe non encodÃ© si caractÃ¨res spÃ©ciaux | Commentaire ; Ã  encoder en URL si modifiÃ© |
+| `DATABASE_URL` | Correcte (hôte `postgres`) ; mot de passe non encodé si caractères spéciaux | Commentaire ; à encoder en URL si modifié |
 | Healthchecks | Aucun pour backend ; frontend `depends_on` sans condition | Healthcheck backend + `condition: service_healthy` |
-| Volumes | `/app/node_modules` anonyme (recrÃ©Ã© Ã  chaque `up`) | Volumes nommÃ©s |
-| `version:` | ObsolÃ¨te | RemplacÃ© par `name:` |
-| Ports | 5432 en conflit avec le PostgreSQL portable de l'hÃ´te | `POSTGRES_PORT=5433` Ã  dÃ©finir si les deux tournent |
+| Volumes | `/app/node_modules` anonyme (recréé à chaque `up`) | Volumes nommés |
+| `version:` | Obsolète | Remplacé par `name:` |
+| Ports | 5432 en conflit avec le PostgreSQL portable de l'hôte | `POSTGRES_PORT=5433` à définir si les deux tournent |
 | Variables | `.env` racine non lu (le compose est dans `docker/`) | Lancer avec `--env-file ../.env` |
-| JWT | Valeurs par dÃ©faut faibles | Acceptable en dev ; Ã  remplacer hors dev |
+| JWT | Valeurs par défaut faibles | Acceptable en dev ; à remplacer hors dev |
 
-Points **encore incertains** (Ã  vÃ©rifier au premier vrai lancement) : healthcheck `mc ready local` de l'image MinIO Ã©pinglÃ©e ; tags `minio/mc` ; build des images ; hot-reload via bind-mount sous Windows ; Prisma dans l'image Linux.
+Points **encore incertains** (à vérifier au premier vrai lancement) : healthcheck `mc ready local` de l'image MinIO épinglée ; tags `minio/mc` ; build des images ; hot-reload via bind-mount sous Windows ; Prisma dans l'image Linux.
 
 ## 6. Lancer le projet localement (sans Docker)
 
-PrÃ©fixe PowerShell : `$env:PATH = "C:\Program Files\nodejs;$env:PATH"` ; utiliser `npm.cmd` / `npx.cmd`. Les commandes PostgreSQL/ports exigent un terminal non restreint.
+Préfixe PowerShell : `$env:PATH = "C:\Program Files\nodejs;$env:PATH"` ; utiliser `npm.cmd` / `npx.cmd`. Les commandes PostgreSQL/ports exigent un terminal non restreint.
 
 ```powershell
-# 1. PostgreSQL (laisser la fenÃªtre ouverte)
+# 1. PostgreSQL (laisser la fenêtre ouverte)
 .tools\pgsql\pgsql\bin\postgres.exe -D .tools\pgsql\data
 
-# 2. Backend (backend\.env copiÃ© depuis .env.example, STORAGE_DRIVER=local)
+# 2. Backend (backend\.env copié depuis .env.example, STORAGE_DRIVER=local)
 cd backend
 npm.cmd run start:dev          # http://localhost:4000/api/v1/health  |  Swagger : /api/docs
 
@@ -98,24 +103,37 @@ npm.cmd run start:dev          # http://localhost:4000/api/v1/health  |  Swagger
 cd ..\frontend
 npm.cmd run dev                # http://localhost:3000/fr  (/ar, /en)
 
-# Base de donnÃ©es / tests
+# Base de données / tests
 cd ..\backend
 npx.cmd prisma migrate dev     # migrations
-npx.cmd ts-node prisma/seed.ts # donnÃ©es de rÃ©fÃ©rence
+npx.cmd ts-node prisma/seed.ts # données de référence
 npx.cmd jest --no-coverage     # tests
 ```
-Avec Docker (non validÃ©) : `docker compose --env-file .env -f docker/docker-compose.yml up --build`.
+Avec Docker (non validé) : `docker compose --env-file .env -f docker/docker-compose.yml up --build`.
 
 ## 7. Limites connues
-- Docker Compose non exÃ©cutÃ© ; MinIO jamais lancÃ© ; `S3StorageProvider` non testÃ© en rÃ©el.
+- Docker Compose non exécuté ; MinIO jamais lancé ; `S3StorageProvider` non testé en réel.
 - PostgreSQL local en `trust` (aucun mot de passe) : **dev uniquement**, loopback.
-- `backend/.env` contient des secrets de dev, non versionnÃ© (`.gitignore`) ; `.env.example` sert de modÃ¨le.
-- 33 vulnÃ©rabilitÃ©s signalÃ©es par `npm audit` (dÃ©pendances transitives) non traitÃ©es.
-- Aucune authentification, aucun module mÃ©tier (candidats, offresâ€¦) : Sprint 2+.
-- Le modÃ¨le Prisma `Report` utilise deux FK optionnelles vers le mÃªme `targetId` (relation polymorphe) : acceptÃ© par la migration mais Ã  revoir avant usage.
-- **DEC-05 (CNDP)** : aucune conformitÃ© lÃ©gale n'est revendiquÃ©e ; analyse juridique requise.
-- Corrections techniques de ce sprint : `@nestjs/terminus` Ã©pinglÃ© Ã  10.2.3 ; `next.config.mjs` (Next 14 sans support `.ts`) ; middleware dans `src/` ; `expandVariables` activÃ© pour les `${VAR}` du `.env`.
+- `backend/.env` contient des secrets de dev, non versionné (`.gitignore`) ; `.env.example` sert de modèle.
+- 33 vulnérabilités signalées par `npm audit` (dépendances transitives) non traitées.
+- Aucune authentification, aucun module métier (candidats, offres…) : Sprint 2+.
+- Le modèle Prisma `Report` utilise deux FK optionnelles vers le même `targetId` (relation polymorphe) : accepté par la migration mais à revoir avant usage.
+- **DEC-05 (CNDP)** : aucune conformité légale n'est revendiquée ; analyse juridique requise.
+- Corrections techniques de ce sprint : `@nestjs/terminus` épinglé à 10.2.3 ; `next.config.mjs` (Next 14 sans support `.ts`) ; middleware dans `src/` ; `expandVariables` activé pour les `${VAR}` du `.env`.
 
+
+
+## 8. Backlog issu du Sprint 1 (à conserver)
+| Réf. | Élément | Origine | Priorité |
+|---|---|---|---|
+| B-01 | **MinIO** : lancer un vrai MinIO (Docker ou autre) et tester `S3StorageProvider` de bout en bout (upload, download, expiration) | critère #3 reporté | Haute avant toute donnée réelle |
+| B-02 | **Docker Compose** : exécuter `docker compose up --build` sur une machine compatible et valider ou corriger (healthcheck `mc ready`, build des images, hot-reload, migrations) | non testé | Haute |
+| B-03 | **Traductions restantes FR/AR/EN** : formulaires, notifications, messages d'erreur API, tableaux de bord, 12 régions et villes ; relecture des textes arabes par un locuteur | critère #9 partiel | Moyenne, progressive à chaque écran |
+| B-04 | Champ `enrollment_credit_score` / règle par type d'offre dans le schéma Prisma et calcul V_obt / V_ins | décision diplômes | Avec modules Offres / Candidats |
+| B-05 | `npm audit` : 33 vulnérabilités transitives | Sprint 1 | Moyenne |
+| B-06 | Revoir la relation polymorphe `Report` (deux FK vers `targetId`) | Sprint 1 | Avant le module Signalements |
+| B-07 | CI GitHub Actions, ESLint, couverture ≥ 85 % mesurée (DoD §11.3) — **non mesurée à ce jour** | DCTF | Moyenne |
+| B-08 | DEC-05 CNDP : analyse juridique ; aucune conformité revendiquée | DCTF | Selon calendrier DEC-05 |
 
 ## Annexe A – Vérification navigateur (frontend → backend)
 

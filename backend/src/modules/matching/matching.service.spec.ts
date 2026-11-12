@@ -1,4 +1,4 @@
-import { MatchingService, MatchingWeights, CandidateData, OfferData } from './matching.service';
+﻿import { MatchingService, MatchingWeights, CandidateData, OfferData, ENROLLMENT_CREDIT_BY_OFFER_TYPE } from './matching.service';
 
 describe('MatchingService (DCTF v3.1 Golden Test Vectors)', () => {
   let service: MatchingService;
@@ -18,7 +18,8 @@ describe('MatchingService (DCTF v3.1 Golden Test Vectors)', () => {
     };
 
     const offer: OfferData = {
-      requiredDegreeLevelValue: 1, // Bac+3 L3
+      requiredDegreeLevelValue: 1, // Bac+3 L3 (inscription dans ce niveau exigee)
+      enrollmentCreditScore: ENROLLMENT_CREDIT_BY_OFFER_TYPE.STAGE_OBSERVATION,
       requiredSkills: [
         { code: 'TSA_NOTIONS', minRequiredLevel: 1, isMandatory: false, weight: 1 },
       ],
@@ -30,8 +31,8 @@ describe('MatchingService (DCTF v3.1 Golden Test Vectors)', () => {
     };
 
     const candidate: CandidateData = {
-      degreeLevelValue: 1,
-      isCurrentlyEnrolled: true,
+      degreeLevelValue: 0, // Licence 3 EN COURS : aucun diplome Bac+3 obtenu
+      enrolledLevelValue: 1,
       specialtyTaxonomyFactor: 1.0,
       skills: [{ code: 'TSA_NOTIONS', level: 1, isVerified: false }],
       totalExperienceMonths: 0,
@@ -70,7 +71,8 @@ describe('MatchingService (DCTF v3.1 Golden Test Vectors)', () => {
     };
 
     const offer: OfferData = {
-      requiredDegreeLevelValue: 2, // Bac+5 / Master requis (DCTF v3.1 §6, Cas 2)
+      requiredDegreeLevelValue: 2, // Bac+5 / Master requis (DCTF §6, Cas 2)
+      enrollmentCreditScore: ENROLLMENT_CREDIT_BY_OFFER_TYPE.STAGE_PFE,
       requiredSkills: [
         { code: 'WISC_V', minRequiredLevel: 3, isMandatory: true, weight: 2 },
         { code: 'PECS', minRequiredLevel: 2, isMandatory: false, weight: 1 },
@@ -83,10 +85,10 @@ describe('MatchingService (DCTF v3.1 Golden Test Vectors)', () => {
     };
 
     const candidate: CandidateData = {
-      // Master 2 EN COURS : le diplome Bac+5 n'est pas encore obtenu.
-      // Plus haut diplome OBTENU = Licence (V=1) = V_offre - 1 + etudiant en cours => 85.
+      // Master 2 EN COURS : diplome Bac+5 NON obtenu (plus haut obtenu = Licence, V=1),
+      // mais inscrit au niveau exige (V=2) => credit PFE = 85.
       degreeLevelValue: 1,
-      isCurrentlyEnrolled: true,
+      enrolledLevelValue: 2,
       specialtyTaxonomyFactor: 1.0,
       skills: [
         { code: 'WISC_V', level: 3, isVerified: true }, // attestation verified
@@ -142,7 +144,7 @@ describe('MatchingService (DCTF v3.1 Golden Test Vectors)', () => {
 
     const candidate: CandidateData = {
       degreeLevelValue: 1,
-      isCurrentlyEnrolled: false,
+      enrolledLevelValue: 0,
       specialtyTaxonomyFactor: 0.75, // Specialité soeur
       skills: [
         { code: 'TEACCH', level: 4, isVerified: true },
@@ -174,3 +176,4 @@ describe('MatchingService (DCTF v3.1 Golden Test Vectors)', () => {
     expect(result.totalScore).toBe(82.33);
   });
 });
+

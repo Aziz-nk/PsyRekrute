@@ -1,4 +1,4 @@
-import { MatchingService, CandidateData, OfferData, MatchingWeights } from './matching.service';
+﻿import { MatchingService, CandidateData, OfferData, MatchingWeights, ENROLLMENT_CREDIT_BY_OFFER_TYPE } from './matching.service';
 
 /**
  * Cas limites derives UNIQUEMENT des formules du DCTF v3.1 §5.2.
@@ -18,7 +18,7 @@ describe('MatchingService – cas limites (DCTF v3.1 §5.2)', () => {
 
   const candidate = (o: Partial<CandidateData> = {}): CandidateData => ({
     degreeLevelValue: 2,
-    isCurrentlyEnrolled: false,
+    enrolledLevelValue: 0,
     specialtyTaxonomyFactor: 1,
     skills: [],
     totalExperienceMonths: 0,
@@ -44,32 +44,80 @@ describe('MatchingService – cas limites (DCTF v3.1 §5.2)', () => {
   const run = (c: Partial<CandidateData>, of: Partial<OfferData> = {}) =>
     service.calculateMatchScore(candidate(c), offer(of), weights);
 
-  describe('Formation', () => {
-    it('niveau atteint => 100', () => {
+  describe('Formation : diplome OBTENU vs formation EN COURS (DCTF v3.1.1 §5.2.1)', () => {
+    const PFE = { enrollmentCreditScore: ENROLLMENT_CREDIT_BY_OFFER_TYPE.STAGE_PFE };
+    const OBS = { enrollmentCreditScore: ENROLLMENT_CREDIT_BY_OFFER_TYPE.STAGE_OBSERVATION };
+
+    it('diplome obtenu au niveau exige ou superieur => 100', () => {
       expect(run({ degreeLevelValue: 2 }).subScores.formation).toBe(100);
       expect(run({ degreeLevelValue: 3 }).subScores.formation).toBe(100);
     });
-    it('niveau - 1 et etudiant en cours => 85', () => {
-      expect(run({ degreeLevelValue: 1, isCurrentlyEnrolled: true }).subScores.formation).toBe(85);
+    it('un diplome obtenu n est jamais degrade par une inscription en cours', () => {
+      expect(run({ degreeLevelValue: 2, enrolledLevelValue: 3 }, PFE).subScores.formation).toBe(100);
     });
-    it('niveau - 1 mais PAS en cours de formation => 40', () => {
-      expect(run({ degreeLevelValue: 1, isCurrentlyEnrolled: false }).subScores.formation).toBe(40);
+
+    describe('Emploi (diplome obtenu exige, aucun credit d inscription)', () => {
+      it('Master 2 en cours (Licence obtenue) ne satisfait PAS une exigence Bac+5 => 40', () => {
+        const r = run({ degreeLevelValue: 1, enrolledLevelValue: 2 }, { enrollmentCreditScore: 0 });
+        expect(r.subScores.formation).toBe(40);
+        expect(r.explanations.gaps.join(' ')).toContain('non obtenu');
+      });
+      it('credit absent (undefined) = meme comportement strict', () => {
+        expect(run({ degreeLevelValue: 1, enrolledLevelValue: 2 }).subScores.formation).toBe(40);
+      });
+      it('le type EMPLOI du referentiel n accorde aucun credit', () => {
+        expect(ENROLLMENT_CREDIT_BY_OFFER_TYPE.EMPLOI).toBe(0);
+      });
     });
-    it('niveau < offre - 1 => 40', () => {
-      expect(run({ degreeLevelValue: 1, isCurrentlyEnrolled: true }, { requiredDegreeLevelValue: 3 }).subScores.formation).toBe(40);
+
+    describe('Stage PFE (inscription dans le niveau exige acceptee, credit 85)', () => {
+      it('Master 2 en cours (Licence obtenue), offre Bac+5 => 85 (exemple DCTF Cas 2)', () => {
+        expect(run({ degreeLevelValue: 1, enrolledLevelValue: 2 }, PFE).subScores.formation).toBe(85);
+      });
+      it('inscrit dans un niveau INFERIEUR a celui exige => 40', () => {
+        expect(run({ degreeLevelValue: 0, enrolledLevelValue: 1 }, PFE).subScores.formation).toBe(40);
+      });
+      it('pas inscrit et diplome insuffisant => 40', () => {
+        expect(run({ degreeLevelValue: 1, enrolledLevelValue: 0 }, PFE).subScores.formation).toBe(40);
+      });
+      it('le credit d inscription est multiplie par la specialite : 85 x 0.75 = 63.75', () => {
+        expect(run({ degreeLevelValue: 1, enrolledLevelValue: 2, specialtyTaxonomyFactor: 0.75 }, PFE).subScores.formation).toBe(63.75);
+      });
+      it('une inscription acceptee est signalee comme diplome en cours d obtention', () => {
+        const r = run({ degreeLevelValue: 1, enrolledLevelValue: 2 }, PFE);
+        expect(r.explanations.gaps.join(' ')).toContain('en cours d\'obtention');
+      });
+    });
+
+    describe('Stage d observation (credit 100 : le public cible est en cours de cursus)', () => {
+      it('L3 en cours, offre Bac+3 => 100 (exemple DCTF Cas 1)', () => {
+        expect(run({ degreeLevelValue: 0, enrolledLevelValue: 1 }, { ...OBS, requiredDegreeLevelValue: 1 }).subScores.formation).toBe(100);
+      });
+      it('un etudiant en cours de cursus n est PAS "sans formation" (critere obligatoire intact)', () => {
+        expect(run({ degreeLevelValue: 0, enrolledLevelValue: 1 }, { ...OBS, requiredDegreeLevelValue: 1 }).mandatoryCriteriaSatisfied).toBe(true);
+      });
+    });
+
+    it('niveau obtenu < exige, sans inscription => 40', () => {
+      expect(run({ degreeLevelValue: 1 }, { requiredDegreeLevelValue: 3 }).subScores.formation).toBe(40);
     });
     it('specialite soeur (0.75) / cousine (0.5) / autre (0.25) multiplient le niveau', () => {
       expect(run({ specialtyTaxonomyFactor: 0.75 }).subScores.formation).toBe(75);
       expect(run({ specialtyTaxonomyFactor: 0.5 }).subScores.formation).toBe(50);
       expect(run({ specialtyTaxonomyFactor: 0.25 }).subScores.formation).toBe(25);
     });
-    it('aucune formation => 0 et critere obligatoire non satisfait', () => {
-      const r = run({ degreeLevelValue: 0 });
+    it('aucune formation (ni obtenue ni en cours) => 0 et critere obligatoire non satisfait', () => {
+      const r = run({ degreeLevelValue: 0, enrolledLevelValue: 0 });
       expect(r.subScores.formation).toBe(0);
       expect(r.mandatoryCriteriaSatisfied).toBe(false);
     });
+    it('les donnees candidat distinguent diplome obtenu et formation suivie (deux champs separes)', () => {
+      const keys = Object.keys(candidate());
+      expect(keys).toContain('degreeLevelValue');
+      expect(keys).toContain('enrolledLevelValue');
+      expect(keys).not.toContain('isCurrentlyEnrolled');
+    });
   });
-
   describe('Competences', () => {
     const mandA = { code: 'A', minRequiredLevel: 3, isMandatory: true, weight: 1 };
     const desB = { code: 'B', minRequiredLevel: 2, isMandatory: false, weight: 1 };
@@ -185,7 +233,7 @@ describe('MatchingService – cas limites (DCTF v3.1 §5.2)', () => {
     it('profil parfait => 100 ; le total reste dans [0, 100]', () => {
       expect(run({}).totalScore).toBe(100);
       const worst = run(
-        { degreeLevelValue: 0, isSameCity: false, isSameRegion: false, isImmediate: false, delayDays: 90 },
+        { degreeLevelValue: 0, enrolledLevelValue: 0, isSameCity: false, isSameRegion: false, isImmediate: false, delayDays: 90 },
         { minExperienceMonths: 6 },
       );
       expect(worst.totalScore).toBeGreaterThanOrEqual(0);
@@ -203,8 +251,10 @@ describe('MatchingService – cas limites (DCTF v3.1 §5.2)', () => {
       for (const k of forbidden) expect(keys).not.toContain(k);
     });
     it('resultat deterministe (memes entrees => memes sorties)', () => {
-      const c = candidate({ degreeLevelValue: 1, isCurrentlyEnrolled: true });
+      const c = candidate({ degreeLevelValue: 1, enrolledLevelValue: 2 });
       expect(service.calculateMatchScore(c, offer(), weights)).toEqual(service.calculateMatchScore(c, offer(), weights));
     });
   });
 });
+
+
