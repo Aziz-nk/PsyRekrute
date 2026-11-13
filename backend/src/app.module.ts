@@ -4,6 +4,7 @@ import { PrismaModule } from './database/prisma.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { MatchingModule } from './modules/matching/matching.module';
 import { HealthModule } from './modules/health/health.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { HealthModule } from './modules/health/health.module';
     StorageModule,
     MatchingModule,
     HealthModule,
+    AuthModule,
   ],
 })
 export class AppModule {}

@@ -628,6 +628,7 @@ model UserSession {
   replacedBySession UserSession? @relation("SessionRotation", fields: [replacedBySessionId], references: [id], onDelete: SetNull)
   replacedSession   UserSession? @relation("SessionRotation")
 
+  @@unique([id, userId], map: "user_sessions_id_user_id_key")
   @@index([userId])
   @@index([expiresAt])
   @@index([userId, revokedAt])
