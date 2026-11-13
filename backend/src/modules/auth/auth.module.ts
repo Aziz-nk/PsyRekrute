@@ -4,11 +4,13 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthRegistrationService } from './auth-registration.service';
 import { AuthSessionService } from './auth-session.service';
 import { AuthController } from './auth.controller';
+import { GlobalRolesGuard } from './global-roles.guard';
 import {
   ACCESS_TOKEN_TTL_SECONDS,
   getJwtAccessSecret,
   JwtAuthGuard,
 } from './jwt-auth.guard';
+import { OrgRolesGuard } from './org-roles.guard';
 import { PasswordHashService } from './password-hash.service';
 import { ProxyAwareThrottlerGuard } from './proxy-throttler.guard';
 import { UserSessionsService } from './user-sessions.service';
@@ -39,6 +41,8 @@ import { UserSessionsService } from './user-sessions.service';
     AuthRegistrationService,
     AuthSessionService,
     JwtAuthGuard,
+    GlobalRolesGuard,
+    OrgRolesGuard,
     ProxyAwareThrottlerGuard,
   ],
   exports: [
@@ -47,6 +51,8 @@ import { UserSessionsService } from './user-sessions.service';
     AuthRegistrationService,
     AuthSessionService,
     JwtAuthGuard,
+    GlobalRolesGuard,
+    OrgRolesGuard,
     JwtModule,
   ],
 })

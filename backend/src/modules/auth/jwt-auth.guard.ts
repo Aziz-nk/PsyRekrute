@@ -2,12 +2,19 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { GlobalRole } from '@prisma/client';
+import {
+  GlobalRole,
+  OrgMemberRole,
+  VerificationStatus,
+} from '@prisma/client';
 import type { Request } from 'express';
 import { PrismaService } from '../../database/prisma.service';
+import { IS_PUBLIC_KEY } from './rbac.decorators';
 
 export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60; // 15 minutes (D6 / DCTF §8.1)
 export const DEFAULT_DEV_JWT_SECRET =
@@ -39,8 +46,15 @@ export interface AuthenticatedUser {
   createdAt: Date;
 }
 
+export interface VerifiedOrganizationMembership {
+  organizationId: string;
+  role: OrgMemberRole;
+  verificationStatus: VerificationStatus;
+}
+
 export interface AuthenticatedRequest extends Request {
   user: AuthenticatedUser;
+  organizationMembership?: VerifiedOrganizationMembership;
 }
 
 @Injectable()
@@ -48,9 +62,18 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    @Optional() private readonly reflector?: Reflector,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector?.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true;
+    }
+
     const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const token = this.extractBearerToken(req);
     if (!token) {
