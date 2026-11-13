@@ -6,6 +6,7 @@ import { MatchingModule } from './modules/matching/matching.module';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { ConsentModule } from './modules/consent/consent.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AuditModule } from './modules/audit/audit.module';
     HealthModule,
     AuditModule,
     AuthModule,
+    ConsentModule,
   ],
 })
 export class AppModule {}
