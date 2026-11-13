@@ -8,6 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { GlobalRole, SessionRevocationReason } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { LoginDto } from './dto/login.dto';
 import {
   ACCESS_TOKEN_TTL_SECONDS,
@@ -49,6 +50,7 @@ export class AuthSessionService implements OnModuleInit {
     private readonly passwordHashService: PasswordHashService,
     private readonly userSessionsService: UserSessionsService,
     private readonly jwtService: JwtService,
+    private readonly auditService: AuditService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -97,29 +99,27 @@ export class AuthSessionService implements OnModuleInit {
     );
 
     if (!isPasswordValid) {
-      await this.prisma.auditLog.create({
-        data: {
-          userId: user.id,
-          action: 'USER_LOGIN_FAILED',
-          entityType: 'USER',
-          entityId: user.id,
-          ipAddress,
-          details: { reason: 'INVALID_PASSWORD', userAgent },
-        },
+      await this.auditService.record({
+        userId: user.id,
+        action: 'USER_LOGIN_FAILED',
+        entityType: 'USER',
+        entityId: user.id,
+        ipAddress,
+        userAgent,
+        details: { reason: 'INVALID_PASSWORD' },
       });
       throw new UnauthorizedException('Invalid email or password');
     }
 
     if (!user.isActive) {
-      await this.prisma.auditLog.create({
-        data: {
-          userId: user.id,
-          action: 'USER_LOGIN_FAILED',
-          entityType: 'USER',
-          entityId: user.id,
-          ipAddress,
-          details: { reason: 'ACCOUNT_INACTIVE', userAgent },
-        },
+      await this.auditService.record({
+        userId: user.id,
+        action: 'USER_LOGIN_FAILED',
+        entityType: 'USER',
+        entityId: user.id,
+        ipAddress,
+        userAgent,
+        details: { reason: 'ACCOUNT_INACTIVE' },
       });
       throw new ForbiddenException('User account is inactive');
     }
@@ -131,22 +131,20 @@ export class AuthSessionService implements OnModuleInit {
         userAgent,
       });
 
-    await this.prisma.$transaction([
-      this.prisma.user.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
         where: { id: user.id },
         data: { lastLoginAt: new Date() },
-      }),
-      this.prisma.auditLog.create({
-        data: {
-          userId: user.id,
-          action: 'USER_LOGIN_SUCCESS',
-          entityType: 'USER_SESSION',
-          entityId: session.id,
-          ipAddress,
-          details: { userAgent },
-        },
-      }),
-    ]);
+      });
+      await this.auditService.recordInTx(tx, {
+        userId: user.id,
+        action: 'USER_LOGIN_SUCCESS',
+        entityType: 'USER_SESSION',
+        entityId: session.id,
+        ipAddress,
+        userAgent,
+      });
+    });
 
     const accessToken = await this.signAccessToken({
       sub: user.id,
@@ -263,15 +261,14 @@ export class AuthSessionService implements OnModuleInit {
       SessionRevocationReason.LOGOUT_ALL,
     );
 
-    await this.prisma.auditLog.create({
-      data: {
-        userId,
-        action: 'USER_LOGOUT_ALL',
-        entityType: 'USER',
-        entityId: userId,
-        ipAddress,
-        details: { revokedCount },
-      },
+    await this.auditService.record({
+      userId,
+      action: 'USER_LOGOUT_ALL',
+      entityType: 'USER',
+      entityId: userId,
+      ipAddress,
+      userAgent: context.userAgent,
+      details: { revokedCount },
     });
 
     return { revokedCount };

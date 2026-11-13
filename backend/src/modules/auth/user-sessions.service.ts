@@ -1,11 +1,13 @@
 import {
   BadRequestException,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { SessionRevocationReason, UserSession } from '@prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 const REFRESH_TOKEN_BYTES = 32; // 256 bits d'entropie cryptographique
 const DEFAULT_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 jours (DCTF §8.1)
@@ -50,7 +52,10 @@ type RotationTxOutcome =
  */
 @Injectable()
 export class UserSessionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly auditService?: AuditService,
+  ) {}
 
   /** Genere un refresh token aleatoire d'au moins 256 bits (base64url). */
   generateRawRefreshToken(): string {
@@ -136,6 +141,15 @@ export class UserSessionsService {
               revokedAt: now,
               revocationReason: SessionRevocationReason.REUSE_DETECTED,
             },
+          });
+          await this.auditService?.recordInTx(tx, {
+            userId: existing.userId,
+            action: 'SESSION_REUSE_DETECTED',
+            entityType: 'USER_SESSION',
+            entityId: existing.id,
+            ipAddress: meta.ipAddress,
+            userAgent: meta.userAgent,
+            details: { revokedCount: revoked.count },
           });
           return { kind: 'REUSE_DETECTED', revokedCount: revoked.count };
         }

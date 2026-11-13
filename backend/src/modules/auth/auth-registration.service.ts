@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { GlobalRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import {
   ALLOWED_LOCALES,
   ALLOWED_PUBLIC_REGISTRATION_ROLES,
@@ -39,6 +40,7 @@ export class AuthRegistrationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly passwordHashService: PasswordHashService,
+    private readonly auditService: AuditService,
   ) {}
 
   /**
@@ -129,19 +131,17 @@ export class AuthRegistrationService {
           });
         }
 
-        await tx.auditLog.create({
-          data: {
-            userId: user.id,
-            action: 'USER_REGISTERED',
-            entityType: 'USER',
-            entityId: user.id,
-            ipAddress,
-            details: {
-              globalRole,
-              preferredLocale: locale,
-              consentsRecorded: [...MANDATORY_REGISTRATION_CONSENTS],
-              userAgent,
-            },
+        await this.auditService.recordInTx(tx, {
+          userId: user.id,
+          action: 'USER_REGISTERED',
+          entityType: 'USER',
+          entityId: user.id,
+          ipAddress,
+          userAgent,
+          details: {
+            globalRole,
+            preferredLocale: locale,
+            consentsRecorded: [...MANDATORY_REGISTRATION_CONSENTS],
           },
         });
 

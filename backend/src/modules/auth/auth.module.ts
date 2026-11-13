@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { AuditModule } from '../audit/audit.module';
 import { AuthRegistrationService } from './auth-registration.service';
 import { AuthSessionService } from './auth-session.service';
 import { AuthController } from './auth.controller';
@@ -17,6 +18,7 @@ import { UserSessionsService } from './user-sessions.service';
 
 @Module({
   imports: [
+    AuditModule,
     ThrottlerModule.forRoot([
       {
         name: 'default',

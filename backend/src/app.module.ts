@@ -5,6 +5,7 @@ import { StorageModule } from './modules/storage/storage.module';
 import { MatchingModule } from './modules/matching/matching.module';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { AuthModule } from './modules/auth/auth.module';
     StorageModule,
     MatchingModule,
     HealthModule,
+    AuditModule,
     AuthModule,
   ],
 })
