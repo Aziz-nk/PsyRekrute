@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import type { Metadata } from 'next';
 import type { Locale } from '@/i18n/request';
 import HealthStatus from '@/components/HealthStatus';
+import UserSessionCard from '@/components/UserSessionCard';
 
 export async function generateMetadata({
   params: { locale },
@@ -16,49 +17,17 @@ export async function generateMetadata({
 export default function HomePage() {
   const t = useTranslations('home.hero');
   const tFeatures = useTranslations('home.features');
-  const tNav = useTranslations('nav');
 
   return (
-    <main className="flex min-h-screen flex-col">
-      {/* Navigation */}
-      <nav className="border-b border-gray-100 bg-white shadow-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-          <span className="text-xl font-bold text-brand-700">PsyRekrute</span>
-          <div className="flex items-center gap-4">
-            <a href="#" className="text-sm text-gray-600 hover:text-brand-600">
-              {tNav('offers')}
-            </a>
-            <a
-              href="#"
-              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-            >
-              {tNav('login')}
-            </a>
-          </div>
-        </div>
-      </nav>
-
+    <main className="flex flex-col">
       {/* Hero */}
-      <section className="bg-gradient-to-br from-brand-50 to-white px-4 py-20 text-center">
+      <section className="bg-gradient-to-br from-brand-50 to-white px-4 py-16 text-center">
         <div className="mx-auto max-w-3xl">
           <h1 className="mb-4 text-4xl font-extrabold tracking-tight text-brand-800 sm:text-5xl">
             {t('title')}
           </h1>
           <p className="mb-8 text-lg text-gray-600">{t('subtitle')}</p>
-          <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <a
-              href="#"
-              className="rounded-lg bg-brand-600 px-6 py-3 text-base font-semibold text-white shadow hover:bg-brand-700"
-            >
-              {t('ctaCandidate')}
-            </a>
-            <a
-              href="#"
-              className="rounded-lg border border-brand-600 px-6 py-3 text-base font-semibold text-brand-700 hover:bg-brand-50"
-            >
-              {t('ctaOrganization')}
-            </a>
-          </div>
+          <UserSessionCard />
         </div>
       </section>
 

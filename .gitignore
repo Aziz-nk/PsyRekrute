@@ -36,6 +36,7 @@ Thumbs.db
 # Testing and Coverage
 coverage/
 .nyc_output/
+*.tsbuildinfo
 
 # Docker and Storage Local Data
 minio-data/

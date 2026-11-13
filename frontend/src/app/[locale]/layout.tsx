@@ -3,6 +3,8 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { locales, localeConfig, type Locale } from '@/i18n/request';
+import { AuthProvider } from '@/context/auth-context';
+import Navbar from '@/components/Navbar';
 import '@/styles/globals.css';
 
 export async function generateMetadata({
@@ -38,9 +40,12 @@ export default async function LocaleLayout({
 
   return (
     <html lang={locale} dir={dir}>
-      <body className="min-h-screen bg-white text-gray-900 antialiased">
+      <body className="min-h-screen bg-gray-50 text-gray-900 antialiased flex flex-col">
         <NextIntlClientProvider messages={messages}>
-          {children}
+          <AuthProvider>
+            <Navbar />
+            <div className="flex-1">{children}</div>
+          </AuthProvider>
         </NextIntlClientProvider>
       </body>
     </html>
