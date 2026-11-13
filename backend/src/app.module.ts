@@ -7,6 +7,7 @@ import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ConsentModule } from './modules/consent/consent.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ConsentModule } from './modules/consent/consent.module';
     AuditModule,
     AuthModule,
     ConsentModule,
+    OrganizationsModule,
   ],
 })
 export class AppModule {}
