@@ -31,6 +31,99 @@ export interface AuthResponseData {
   user: AuthUser;
 }
 
+export interface MoroccanRegion {
+  code: string;
+  nameFr: string;
+  nameAr: string;
+  nameEn: string;
+}
+
+export interface RefSpecialty {
+  id: string;
+  code: string;
+  titleFr: string;
+  titleAr: string;
+  titleEn: string;
+  description?: string;
+  parentId?: string;
+}
+
+export interface RefSkill {
+  id: string;
+  code: string;
+  category: string;
+  titleFr: string;
+  titleAr: string;
+  titleEn: string;
+  isVerifiedEligible: boolean;
+  parentId?: string;
+}
+
+export interface CandidateEducation {
+  id: string;
+  degreeLevel: string;
+  degreeTitle: string;
+  institutionName: string;
+  specialtyId: string;
+  startYear: number;
+  endYear?: number;
+  isCurrentlyEnrolled: boolean;
+  specialty?: RefSpecialty;
+}
+
+export interface CandidateExperience {
+  id: string;
+  experienceType: string;
+  organizationName: string;
+  positionTitle: string;
+  targetAudience?: string;
+  startDate: string;
+  endDate?: string;
+  isCurrent: boolean;
+  totalMonths: number;
+  description?: string;
+}
+
+export interface CandidateSkill {
+  id: string;
+  skillId: string;
+  level: string;
+  isVerified: boolean;
+  skill?: RefSkill;
+}
+
+export interface CandidateLanguage {
+  id: string;
+  languageCode: string;
+  proficiencyLevel: string;
+}
+
+export interface CandidateProfile {
+  id: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  profileCategory: string;
+  primarySpecialtyId: string;
+  regionCode: string;
+  cityName: string;
+  mobilityRadiusKm: number;
+  openToRelocation: boolean;
+  availabilityStatus: string;
+  availableFrom?: string;
+  targetContractTypes: string[];
+  bio?: string;
+  cvStoragePath?: string;
+  isAnonymizedInPool: boolean;
+  profileCompletionPercentage: number;
+  primarySpecialty?: RefSpecialty;
+  education?: CandidateEducation[];
+  experiences?: CandidateExperience[];
+  skills?: CandidateSkill[];
+  languages?: CandidateLanguage[];
+}
+
 export class ApiClientError extends Error {
   constructor(
     public readonly statusCode: number,
@@ -42,8 +135,6 @@ export class ApiClientError extends Error {
   }
 }
 
-// In-memory access token storage strictly conforming to security constraint D5 & D6
-// NEVER store tokens in localStorage or sessionStorage.
 let inMemoryAccessToken: string | null = null;
 
 export function getAccessToken(): string | null {
@@ -72,7 +163,6 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const response = await fetch(url, {
     ...options,
     headers,
-    // Always include credentials to send and receive HttpOnly cookies across origins
     credentials: 'include',
   });
 
@@ -92,28 +182,24 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const authApi = {
-  async register(payload: RegisterPayload): Promise<{
-    statusCode: number;
-    message: string;
-    data: {
-      id: string;
-      email: string;
-      globalRole: string;
-      preferredLocale: string;
-      createdAt: string;
-    };
-  }> {
-    return request('/auth/register', {
+  async register(payload: RegisterPayload) {
+    return request<{
+      statusCode: number;
+      message: string;
+      data: {
+        id: string;
+        email: string;
+        globalRole: string;
+        preferredLocale: string;
+        createdAt: string;
+      };
+    }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   },
 
-  async login(payload: LoginPayload): Promise<{
-    statusCode: number;
-    message: string;
-    data: AuthResponseData;
-  }> {
+  async login(payload: LoginPayload) {
     const res = await request<{
       statusCode: number;
       message: string;
@@ -130,11 +216,7 @@ export const authApi = {
     return res;
   },
 
-  async refresh(): Promise<{
-    statusCode: number;
-    message: string;
-    data: AuthResponseData;
-  }> {
+  async refresh() {
     const res = await request<{
       statusCode: number;
       message: string;
@@ -150,13 +232,13 @@ export const authApi = {
     return res;
   },
 
-  async logout(): Promise<{
-    statusCode: number;
-    message: string;
-    data: { revoked: boolean };
-  }> {
+  async logout() {
     try {
-      return await request('/auth/logout', {
+      return await request<{
+        statusCode: number;
+        message: string;
+        data: { revoked: boolean };
+      }>('/auth/logout', {
         method: 'POST',
       });
     } finally {
@@ -164,12 +246,156 @@ export const authApi = {
     }
   },
 
-  async getMe(): Promise<{
-    statusCode: number;
-    data: AuthUser;
-  }> {
-    return request('/auth/me', {
+  async getMe() {
+    return request<{
+      statusCode: number;
+      data: AuthUser;
+    }>('/auth/me', {
       method: 'GET',
     });
+  },
+};
+
+export const referenceApi = {
+  async getRegions() {
+    return request<{ statusCode: number; data: MoroccanRegion[] }>(
+      '/reference/regions',
+      { method: 'GET' },
+    );
+  },
+
+  async getSpecialties() {
+    return request<{ statusCode: number; data: RefSpecialty[] }>(
+      '/reference/specialties',
+      { method: 'GET' },
+    );
+  },
+
+  async getSkills() {
+    return request<{ statusCode: number; data: RefSkill[] }>(
+      '/reference/skills',
+      { method: 'GET' },
+    );
+  },
+};
+
+export const candidateApi = {
+  async getMyProfile() {
+    return request<{ statusCode: number; data: CandidateProfile | null }>(
+      '/candidates/me',
+      { method: 'GET' },
+    );
+  },
+
+  async upsertProfile(payload: Partial<CandidateProfile>) {
+    return request<{ statusCode: number; message: string; data: CandidateProfile }>(
+      '/candidates/me',
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
+  async addEducation(payload: Omit<CandidateEducation, 'id' | 'specialty'>) {
+    return request<{ statusCode: number; message: string; data: CandidateEducation }>(
+      '/candidates/me/education',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
+  async deleteEducation(educationId: string) {
+    return request<{ statusCode: number; message: string; data: { deleted: boolean } }>(
+      `/candidates/me/education/${educationId}`,
+      { method: 'DELETE' },
+    );
+  },
+
+  async addExperience(payload: Omit<CandidateExperience, 'id'>) {
+    return request<{ statusCode: number; message: string; data: CandidateExperience }>(
+      '/candidates/me/experiences',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
+  async deleteExperience(experienceId: string) {
+    return request<{ statusCode: number; message: string; data: { deleted: boolean } }>(
+      `/candidates/me/experiences/${experienceId}`,
+      { method: 'DELETE' },
+    );
+  },
+
+  async setSkills(skills: Array<{ skillId: string; level: string }>) {
+    return request<{ statusCode: number; message: string; data: CandidateSkill[] }>(
+      '/candidates/me/skills',
+      {
+        method: 'PUT',
+        body: JSON.stringify({ skills }),
+      },
+    );
+  },
+
+  async setLanguages(languages: Array<{ languageCode: string; proficiencyLevel: string }>) {
+    return request<{ statusCode: number; message: string; data: CandidateLanguage[] }>(
+      '/candidates/me/languages',
+      {
+        method: 'PUT',
+        body: JSON.stringify({ languages }),
+      },
+    );
+  },
+
+  async getCvUploadUrl() {
+    return request<{
+      statusCode: number;
+      data: { uploadUrl: string; storageKey: string; expiresInSeconds: number };
+    }>('/candidates/me/cv/upload-url', { method: 'POST' });
+  },
+
+  async confirmCvUpload(storageKey: string) {
+    return request<{ statusCode: number; message: string; data: CandidateProfile }>(
+      '/candidates/me/cv/confirm',
+      {
+        method: 'POST',
+        body: JSON.stringify({ storageKey }),
+      },
+    );
+  },
+
+  async getCvDownloadUrl() {
+    return request<{
+      statusCode: number;
+      data: { downloadUrl: string; expiresInSeconds: number };
+    }>('/candidates/me/cv/download-url', { method: 'GET' });
+  },
+};
+
+export const consentApi = {
+  async getConsents() {
+    return request<{
+      statusCode: number;
+      data: Array<{
+        consentType: string;
+        hasConsented: boolean;
+        version: string;
+        consentedAt: string | null;
+      }>;
+    }>('/me/consents', { method: 'GET' });
+  },
+
+  async updateConsent(consentType: string, hasConsented: boolean, version: string = '1.0') {
+    return request<{ statusCode: number; message: string }>(
+      '/me/consents',
+      {
+        method: 'PUT',
+        body: JSON.stringify({ consentType, hasConsented, version }),
+      },
+    );
   },
 };

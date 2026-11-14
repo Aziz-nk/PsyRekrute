@@ -41,6 +41,15 @@ export default function Navbar() {
           <Link href="/" className="text-xl font-bold text-brand-700 hover:text-brand-800">
             PsyRekrute
           </Link>
+          {user?.globalRole === 'CANDIDATE' && (
+            <Link
+              href="/candidate/profile"
+              data-testid="nav-candidate-profile-link"
+              className="text-xs sm:text-sm font-medium text-gray-700 hover:text-brand-600 transition"
+            >
+              {tNav('profile')}
+            </Link>
+          )}
         </div>
 
         <div className="flex items-center gap-3 sm:gap-4">

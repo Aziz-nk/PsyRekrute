@@ -8,6 +8,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ConsentModule } from './modules/consent/consent.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { ReferenceModule } from './modules/reference/reference.module';
+import { CandidatesModule } from './modules/candidates/candidates.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
     AuthModule,
     ConsentModule,
     OrganizationsModule,
+    ReferenceModule,
+    CandidatesModule,
   ],
 })
 export class AppModule {}

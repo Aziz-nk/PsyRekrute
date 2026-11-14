@@ -8,6 +8,7 @@ import { useAuth } from '@/context/auth-context';
 export default function UserSessionCard() {
   const tHero = useTranslations('home.hero');
   const tSession = useTranslations('auth.session');
+  const tNav = useTranslations('nav');
   const { user, logout, isLoading } = useAuth();
 
   if (isLoading) {
@@ -52,7 +53,18 @@ export default function UserSessionCard() {
           </div>
         </div>
 
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-between gap-3">
+          {user.globalRole === 'CANDIDATE' ? (
+            <Link
+              href="/candidate/profile"
+              data-testid="card-candidate-profile-btn"
+              className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-700 transition"
+            >
+              {tNav('profile')}
+            </Link>
+          ) : (
+            <div />
+          )}
           <button
             onClick={() => logout()}
             data-testid="card-logout-btn"
