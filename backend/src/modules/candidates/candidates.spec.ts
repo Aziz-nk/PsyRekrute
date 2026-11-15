@@ -5,7 +5,6 @@ import {
   AvailabilityStatus,
   DegreeLevel,
   ExperienceType,
-  GlobalRole,
   PrismaClient,
   ProfileCategory,
   SkillLevel,

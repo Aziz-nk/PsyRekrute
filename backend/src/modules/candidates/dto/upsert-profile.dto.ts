@@ -13,7 +13,6 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { MOROCCAN_REGION_CODES } from '../../../constants/moroccan-regions.constant';
 
 export class UpsertCandidateProfileDto {
   @ApiProperty({ example: 'Kenza' })

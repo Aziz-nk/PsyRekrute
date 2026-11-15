@@ -47,6 +47,7 @@ export default function CandidateProfilePage() {
   const [availableFrom, setAvailableFrom] = useState('');
   const [anonymizedInPool, setAnonymizedInPool] = useState(true);
   const [talentPoolConsent, setTalentPoolConsent] = useState(false);
+  const [initialTalentPoolConsent, setInitialTalentPoolConsent] = useState(false);
 
   // Sub-entity Form States
   // Education form
@@ -106,7 +107,9 @@ export default function CandidateProfilePage() {
 
         // Talent pool consent
         const tpConsent = consentsRes.data?.find((c) => c.consentType === 'TALENT_POOL_MATCHING');
-        setTalentPoolConsent(!!tpConsent?.hasConsented);
+        const currentConsentVal = !!tpConsent?.hasConsented;
+        setTalentPoolConsent(currentConsentVal);
+        setInitialTalentPoolConsent(currentConsentVal);
 
         // Pre-fill profile if existing
         const p = profileRes.data;
@@ -171,8 +174,11 @@ export default function CandidateProfilePage() {
         isAnonymizedInPool: anonymizedInPool,
       });
 
-      // Update Talent pool matching consent
-      await consentApi.updateConsent('TALENT_POOL_MATCHING', talentPoolConsent, '1.0');
+      // Update Talent pool matching consent only if the value actually changed
+      if (talentPoolConsent !== initialTalentPoolConsent) {
+        await consentApi.updateConsent('TALENT_POOL_MATCHING', talentPoolConsent, '1.0');
+        setInitialTalentPoolConsent(talentPoolConsent);
+      }
 
       // Refresh profile state
       const refreshed = await candidateApi.getMyProfile();

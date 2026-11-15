@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -100,7 +99,7 @@ export class CandidatesService {
   async upsertProfile(
     userId: string,
     dto: UpsertCandidateProfileDto,
-    context?: AuditContext,
+    _context?: AuditContext,
   ) {
     // Valider la région
     if (!MOROCCAN_REGION_CODES.includes(dto.regionCode)) {
