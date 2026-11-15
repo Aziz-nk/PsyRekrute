@@ -9,6 +9,7 @@ import {
   JobOffer,
   MoroccanRegion,
   offersApi,
+  RecommendedCandidate,
   referenceApi,
   RefSkill,
   RefSpecialty,
@@ -90,6 +91,15 @@ export default function OrganizationOffersPage() {
   const [newSkillMandatory, setNewSkillMandatory] = useState(true);
   const [newLangCode, setNewLangCode] = useState('FR');
   const [newLangProf, setNewLangProf] = useState('COURANT_PROFESSIONNEL');
+
+  // Panneau de candidats recommandés (M3.3 Matching)
+  const [expandedOfferId, setExpandedOfferId] = useState<string | null>(null);
+  const [minScoreFilter, setMinScoreFilter] = useState<number>(60);
+  const [recommendedCandidates, setRecommendedCandidates] = useState<
+    RecommendedCandidate[]
+  >([]);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] =
+    useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -339,6 +349,35 @@ export default function OrganizationOffersPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error archiving offer');
     }
+  };
+
+  const fetchRecommendations = async (offerId: string, threshold: number) => {
+    setIsLoadingRecommendations(true);
+    setError(null);
+    try {
+      const res = await offersApi.getRecommendedCandidates(offerId, {
+        minScore: threshold,
+      });
+      setRecommendedCandidates(res.data);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Error loading recommended candidates',
+      );
+    } finally {
+      setIsLoadingRecommendations(false);
+    }
+  };
+
+  const toggleRecommendationsPanel = async (offerId: string) => {
+    if (expandedOfferId === offerId) {
+      setExpandedOfferId(null);
+      setRecommendedCandidates([]);
+      return;
+    }
+    setExpandedOfferId(offerId);
+    await fetchRecommendations(offerId, minScoreFilter);
   };
 
   const addSkillToOffer = () => {
@@ -1240,8 +1279,233 @@ export default function OrganizationOffersPage() {
                           {t('manage.archive')}
                         </button>
                       )}
+
+                      {canWrite &&
+                        activeOrg?.verificationStatus === 'VERIFIED' && (
+                          <button
+                            type="button"
+                            onClick={() => toggleRecommendationsPanel(offer.id)}
+                            data-testid={`view-recommendations-btn-${offer.id}`}
+                            className="rounded-lg bg-brand-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-brand-700 transition"
+                          >
+                            {expandedOfferId === offer.id
+                              ? t('matching.hideRecommendations')
+                              : t('matching.viewRecommendations')}
+                          </button>
+                        )}
                     </div>
                   </div>
+
+                  {/* Panneau de candidats recommandés (M3.3 Matching) */}
+                  {expandedOfferId === offer.id && (
+                    <div
+                      data-testid={`recommendations-panel-${offer.id}`}
+                      className="mt-6 border-t border-gray-100 pt-5 space-y-4"
+                    >
+                      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                        <h4
+                          data-testid="recommendations-panel-title"
+                          className="text-sm font-bold text-gray-900"
+                        >
+                          {t('matching.panelTitle')}
+                        </h4>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="text-xs font-medium text-gray-700">
+                            {t('matching.minScoreLabel')}
+                          </label>
+                          <select
+                            value={minScoreFilter}
+                            onChange={(e) => {
+                              const nextScore = Number(e.target.value);
+                              setMinScoreFilter(nextScore);
+                              fetchRecommendations(offer.id, nextScore);
+                            }}
+                            data-testid={`recommendations-minscore-select-${offer.id}`}
+                            className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-900"
+                          >
+                            <option value={0}>0%</option>
+                            <option value={40}>40%</option>
+                            <option value={60}>60%</option>
+                            <option value={75}>75%</option>
+                            <option value={85}>85%</option>
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              fetchRecommendations(offer.id, minScoreFilter)
+                            }
+                            data-testid={`recommendations-refresh-btn-${offer.id}`}
+                            className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                          >
+                            {t('matching.refreshBtn')}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Mention d'aide à la décision RH & Loi 09-08 */}
+                      <div
+                        data-testid="matching-hr-disclaimer"
+                        className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 leading-relaxed"
+                      >
+                        {t('matching.disclaimer')}
+                      </div>
+
+                      {isLoadingRecommendations ? (
+                        <div className="flex justify-center py-6">
+                          <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+                        </div>
+                      ) : recommendedCandidates.length === 0 ? (
+                        <div
+                          data-testid="no-recommended-candidates"
+                          className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center text-xs text-gray-600"
+                        >
+                          {t('matching.noCandidates')}
+                        </div>
+                      ) : (
+                        <div
+                          data-testid="recommended-candidates-list"
+                          className="space-y-4"
+                        >
+                          {recommendedCandidates.map((cand) => (
+                            <div
+                              key={cand.candidateId}
+                              data-testid={`recommended-candidate-card-${cand.candidateId}`}
+                              className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 space-y-3"
+                            >
+                              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span
+                                    data-testid="candidate-anonymized-id"
+                                    className="text-sm font-bold text-gray-900"
+                                  >
+                                    {cand.displayName}
+                                  </span>
+                                  <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700 border border-indigo-200">
+                                    {t('matching.anonymizedBadge')}
+                                  </span>
+                                  <span className="text-xs text-gray-600">
+                                    {cand.cityName} ({cand.regionCode} • ±
+                                    {cand.mobilityRadiusKm} km)
+                                  </span>
+                                  {cand.openToRelocation && (
+                                    <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-medium text-teal-700 border border-teal-200">
+                                      {t('matching.relocationYes')}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${
+                                      cand.mandatoryCriteriaSatisfied
+                                        ? 'bg-green-50 text-green-700 border-green-200'
+                                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                                    }`}
+                                  >
+                                    {cand.mandatoryCriteriaSatisfied
+                                      ? t('matching.mandatoryOk')
+                                      : t('matching.mandatoryMissing')}
+                                  </span>
+                                  <span
+                                    data-testid="candidate-total-score"
+                                    className="rounded-lg bg-brand-600 px-3 py-1 text-xs font-bold text-white shadow-sm"
+                                  >
+                                    {t('matching.totalScore')} :{' '}
+                                    {cand.totalScore.toFixed(2)}%
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Sous-scores des 6 dimensions */}
+                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                                <div className="rounded-lg border border-gray-200 bg-white p-2 text-center">
+                                  <div className="text-[11px] text-gray-500">
+                                    {t('matching.subFormation')}
+                                  </div>
+                                  <div className="text-xs font-bold text-gray-900">
+                                    {cand.subScores.formation.toFixed(0)}%
+                                  </div>
+                                </div>
+                                <div className="rounded-lg border border-gray-200 bg-white p-2 text-center">
+                                  <div className="text-[11px] text-gray-500">
+                                    {t('matching.subSkills')}
+                                  </div>
+                                  <div className="text-xs font-bold text-gray-900">
+                                    {cand.subScores.skills.toFixed(0)}%
+                                  </div>
+                                </div>
+                                <div className="rounded-lg border border-gray-200 bg-white p-2 text-center">
+                                  <div className="text-[11px] text-gray-500">
+                                    {t('matching.subExperience')}
+                                  </div>
+                                  <div className="text-xs font-bold text-gray-900">
+                                    {cand.subScores.experience.toFixed(0)}%
+                                  </div>
+                                </div>
+                                <div className="rounded-lg border border-gray-200 bg-white p-2 text-center">
+                                  <div className="text-[11px] text-gray-500">
+                                    {t('matching.subLocation')}
+                                  </div>
+                                  <div className="text-xs font-bold text-gray-900">
+                                    {cand.subScores.location.toFixed(0)}%
+                                  </div>
+                                </div>
+                                <div className="rounded-lg border border-gray-200 bg-white p-2 text-center">
+                                  <div className="text-[11px] text-gray-500">
+                                    {t('matching.subLanguages')}
+                                  </div>
+                                  <div className="text-xs font-bold text-gray-900">
+                                    {cand.subScores.languages.toFixed(0)}%
+                                  </div>
+                                </div>
+                                <div className="rounded-lg border border-gray-200 bg-white p-2 text-center">
+                                  <div className="text-[11px] text-gray-500">
+                                    {t('matching.subAvailability')}
+                                  </div>
+                                  <div className="text-xs font-bold text-gray-900">
+                                    {cand.subScores.availability.toFixed(0)}%
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Explications : Points forts & Écarts */}
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                {cand.explanations.strengths.length > 0 && (
+                                  <div className="rounded-lg border border-green-100 bg-green-50/60 p-2.5">
+                                    <div className="text-[11px] font-bold text-green-800 mb-1">
+                                      {t('matching.strengths')}
+                                    </div>
+                                    <ul className="list-disc list-inside space-y-0.5 text-[11px] text-green-900">
+                                      {cand.explanations.strengths.map(
+                                        (s, idx) => (
+                                          <li key={idx}>{s}</li>
+                                        ),
+                                      )}
+                                    </ul>
+                                  </div>
+                                )}
+
+                                {cand.explanations.gaps.length > 0 && (
+                                  <div className="rounded-lg border border-amber-100 bg-amber-50/60 p-2.5">
+                                    <div className="text-[11px] font-bold text-amber-800 mb-1">
+                                      {t('matching.gaps')}
+                                    </div>
+                                    <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-900">
+                                      {cand.explanations.gaps.map((g, idx) => (
+                                        <li key={idx}>{g}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

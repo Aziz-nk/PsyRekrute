@@ -328,6 +328,28 @@
       "successPublished": "Offer published successfully.",
       "successClosed": "Offer closed successfully.",
       "successArchived": "Offer archived successfully."
+    },
+    "matching": {
+      "viewRecommendations": "Recommended Candidates (Talent Pool)",
+      "hideRecommendations": "Hide Recommendations",
+      "panelTitle": "Recommended Candidates for This Offer",
+      "disclaimer": "HR Decision-Support Tool: The matching score is a multi-criteria mathematical indicator and does not constitute a diagnosis, clinical assessment, or automated recruitment decision. Talent pool profiles are strictly anonymized.",
+      "minScoreLabel": "Minimum Threshold (%)",
+      "refreshBtn": "Refresh",
+      "noCandidates": "No eligible candidate (with active talent pool consent) reaches the selected threshold for this offer.",
+      "anonymizedBadge": "Anonymized Profile (Law 09-08)",
+      "totalScore": "Overall Score",
+      "subFormation": "Education & Specialty",
+      "subSkills": "Skills",
+      "subExperience": "Experience",
+      "subLocation": "Location & Mobility",
+      "subLanguages": "Languages",
+      "subAvailability": "Availability",
+      "strengths": "Identified Strengths",
+      "gaps": "Points of Attention / Gaps",
+      "mandatoryOk": "Mandatory Criteria Met",
+      "mandatoryMissing": "Mandatory Criterion Incomplete",
+      "relocationYes": "Willing to Relocate Nationally"
     }
   },
   "health": {

@@ -525,6 +525,36 @@ export interface PaginatedMeta {
   totalPages: number;
 }
 
+export interface RecommendedCandidate {
+  candidateId: string;
+  displayName: string;
+  isAnonymized: boolean;
+  profileCategory: string;
+  regionCode: string;
+  cityName: string;
+  mobilityRadiusKm: number;
+  openToRelocation: boolean;
+  availabilityStatus: string;
+  totalScore: number;
+  subScores: {
+    formation: number;
+    skills: number;
+    experience: number;
+    location: number;
+    languages: number;
+    availability: number;
+  };
+  mandatoryCriteriaSatisfied: boolean;
+  explanations: {
+    strengths: string[];
+    gaps: string[];
+  };
+  algoVersion: string;
+  calculatedAt: string;
+  hasApplied: boolean;
+  isInvited: boolean;
+}
+
 export const offersApi = {
   async listPublicOffers(params?: {
     page?: number;
@@ -645,5 +675,26 @@ export const offersApi = {
       `/organizations/${organizationId}/job-offers/${offerId}/archive`,
       { method: 'POST' },
     );
+  },
+
+  async getRecommendedCandidates(
+    offerId: string,
+    params?: { page?: number; limit?: number; minScore?: number },
+  ) {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.minScore !== undefined) {
+      query.set('minScore', String(params.minScore));
+    }
+    const qs = query.toString();
+
+    return request<{
+      statusCode: number;
+      data: RecommendedCandidate[];
+      meta: PaginatedMeta;
+    }>(`/job-offers/${offerId}/recommended-candidates${qs ? `?${qs}` : ''}`, {
+      method: 'GET',
+    });
   },
 };

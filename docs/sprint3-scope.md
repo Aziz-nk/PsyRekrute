@@ -1,6 +1,6 @@
 # Sprint 3 – Périmètre et décisions officielles (VALIDÉ PAR LE COORDINATEUR)
 
-> **Statut : Modules M3.1 et M3.2 validés et implémentés.** Développement séquentiel module par module (M3.1 → M3.2 → M3.3), avec validation préalable et tests avant chaque commit Git.
+> **Statut : Modules M3.1, M3.2 et M3.3 validés et implémentés (Sprint 3 terminé).** Développement séquentiel module par module (M3.1 → M3.2 → M3.3), avec validation préalable et tests avant chaque commit Git.
 > Références : DCTF v3.1.2 §3 (entités `CANDIDATE_PROFILES`, `CANDIDATE_EDUCATIONS`, `CANDIDATE_EXPERIENCES`, `CANDIDATE_SKILLS`, `CANDIDATE_LANGUAGES`, `JOB_OFFERS`, `JOB_REQUIRED_SKILLS`, `JOB_REQUIRED_LANGUAGES`, etc.), §4.2 (Matrice RBAC), §5 (Moteur de matching), §8.5 (Consentements), §9.3 (API Offres), §11.3 (Definition of Done).
 
 ---
@@ -15,8 +15,8 @@
 | # | Module | Contenu | Rôle simulé | Dépend de | État |
 |---|---|---|---|---|---|
 | **M3.1** | **Référentiels & Profil Candidat minimal** | Référentiel des 12 régions marocaines (trilingue FR/AR/EN), CRUD profil candidat (`/candidates/me`), formations, expériences, compétences (`REF_SKILLS`), langues (`CandidateLanguageItemDto`), CV (upload/download presigned URLs + validation 5 Mo / `%PDF-`), consentement vivier (`TALENT_POOL_MATCHING`) & anonymisation (`isAnonymizedInPool`), interface candidat complète (`/candidate/profile`) trilingue FR/AR/EN avec support RTL. | Dev 3 / Dev 2 | Sprint 2 (M1 à M6) | **Validé et commité** (`7e4c5392`) |
-| **M3.2** | **Gestion des Offres d'emploi / stage** | CRUD offres par organisation (`JOB_OFFERS`, `JOB_REQUIRED_SKILLS`, `JOB_REQUIRED_LANGUAGES`), statuts (`DRAFT`, `PUBLISHED`, `CLOSED`, `ARCHIVED`), protection des organisations non vérifiées (`VERIFIED` requis pour publier), contrôle RBAC (`OWNER`, `ADMIN`, `RECRUITER`, `VIEWER`) et isolation inter-organisations, recherche publique paginée (`/api/v1/job-offers`), interfaces frontend trilingues FR/AR(RTL)/EN (`/offers`, `/offers/[id]`, `/organization/offers`). | Dev 1 / Dev 2 | M3.1, M5 | **Validé et implémenté** |
-| **M3.3** | **Moteur de Matching exposé en API** | Intégration du `MatchingService` existant sur les offres et profils éligibles (consentement `TALENT_POOL_MATCHING` actif, organisation vérifiée), calcul des scores et seuil d'admissibilité (≥ 50 %), restitution détaillée. | Dev 3 | M3.1, M3.2 | *En attente d'autorisation* |
+| **M3.2** | **Gestion des Offres d'emploi / stage** | CRUD offres par organisation (`JOB_OFFERS`, `JOB_REQUIRED_SKILLS`, `JOB_REQUIRED_LANGUAGES`), statuts (`DRAFT`, `PUBLISHED`, `CLOSED`, `ARCHIVED`), protection des organisations non vérifiées (`VERIFIED` requis pour publier), contrôle RBAC (`OWNER`, `ADMIN`, `RECRUITER`, `VIEWER`) et isolation inter-organisations, recherche publique paginée (`/api/v1/job-offers`), interfaces frontend trilingues FR/AR(RTL)/EN (`/offers`, `/offers/[id]`, `/organization/offers`). | Dev 1 / Dev 2 | M3.1, M5 | **Validé et commité** (`1251d182`) |
+| **M3.3** | **Moteur de Matching exposé en API** | Intégration du `MatchingService` existant sur les offres et profils éligibles (consentement `TALENT_POOL_MATCHING` actif, organisation vérifiée), calcul et persistance des scores (`MATCH_RESULTS`), anonymisation stricte du vivier (`#CAND-XXXXXX`), restitution paginée avec sous-scores et explications, interface recruteur trilingue FR/AR(RTL)/EN avec mention d'aide à la décision RH. | Dev 3 / Dev 2 | M3.1, M3.2 | **Validé et implémenté** |
 
 ---
 
@@ -90,4 +90,31 @@
 
 ### 4.3 Tests & Qualité M3.2
 - 20 tests d'intégration automatisés (`backend/src/modules/offers/offers.spec.ts`) couvrant RBAC, protection des organisations non vérifiées, isolation inter-organisations, recherche publique et cycle de vie des statuts.
+
+---
+
+## 5. Détail du Module M3.3 – Exposition du Moteur de Matching (Réalisé)
+
+### 5.1 Backend (`backend/src/modules/matching/`)
+- **Orchestrateur Prisma (`MatchingOrchestratorService` — `backend/src/modules/matching/matching-orchestrator.service.ts`)** :
+  - Connecte le `MatchingService` existant (sans aucune modification de ses pondérations ni de ses formules) aux données réelles de `JOB_OFFERS`, `CANDIDATE_PROFILES`, `MATCHING_CONFIG`, `REF_SPECIALTIES`, `REF_SKILLS` et `CONSENTS`.
+  - **Consentement `TALENT_POOL_MATCHING` strict (Loi 09-08)** : sélectionne uniquement les candidats dont le dernier enregistrement `TALENT_POOL_MATCHING` a `hasConsented = true`, et purge immédiatement dans `MATCH_RESULTS` les résultats obsolètes des candidats ayant retiré leur consentement.
+  - **Persistance (`MATCH_RESULTS`)** : enregistre par `upsert` sur la clé unique `(jobOfferId, candidateId)` le `totalScore`, les 6 sous-scores (`subScoreFormation`, `subScoreSkills`, `subScoreExperience`, `subScoreLocation`, `subScoreLanguages`, `subScoreAvailability`), `mandatoryCriteriaSatisfied`, `explanationJson` (`strengths` / `gaps`) et `algoVersion`.
+  - **Anonymisation stricte dans le vivier** : retourne uniquement un identifiant anonymisé `#CAND-XXXXXX` (`isAnonymized: true`) et n'expose jamais `firstName`, `lastName`, `email`, `phone`, `cvStoragePath` ni `userId`.
+  - **Contrôle d'accès et isolation** : réservé aux rôles `OWNER`, `ADMIN`, `RECRUITER` de l'organisation propriétaire de l'offre (ou `SYSTEM_ADMIN`), et uniquement lorsque l'organisation est active et au statut `VERIFIED` (`403 Forbidden` pour `VIEWER`, `CANDIDATE`, une autre organisation ou une organisation `PENDING`/`REJECTED`).
+- **Endpoints API (`MatchingController` — `backend/src/modules/matching/matching.controller.ts`)** :
+  - `GET /api/v1/job-offers/:id/recommended-candidates` (DCTF §9.4) : liste paginée des candidats recommandés triés par `totalScore DESC` avec filtre `minScore` (défaut `60`).
+  - `GET /api/v1/organizations/:organizationId/job-offers/:offerId/recommended-candidates` : alias scopé par organisation avec vérification d'appartenance de l'offre.
+
+### 5.2 Frontend (`frontend/src/app/[locale]/organization/offers/page.tsx`)
+- Panneau déroulant **"Candidats recommandés (Vivier)"** sur chaque offre d'une structure vérifiée :
+  - Bandeau explicite d'**Aide à la décision RH & conformité Loi 09-08** (rappelant que le score de matching est un indicateur mathématique multicritère et ne constitue ni un diagnostic, ni une évaluation clinique, ni une décision automatisée de recrutement).
+  - Filtre de seuil minimal (`minScore` : 0 %, 40 %, 60 %, 75 %, 85 %) et bouton d'actualisation.
+  - Cartes de profils anonymisés (`#CAND-XXXXXX`), score global, les 6 sous-scores détaillés, statut des critères obligatoires et explications (points forts / points d'attention).
+  - Internationalisation complète FR / AR (RTL) / EN.
+
+### 5.3 Tests & Qualité M3.3
+- 12 tests d'intégration de bout en bout (`backend/src/modules/matching/matching-api.spec.ts`) validant les 3 cas de référence DCTF §6 (`100.00%` Stage d'Observation, `93.25%` Stage PFE, `82.33%` Emploi) depuis PostgreSQL, l'anonymisation stricte, le tri décroissant et `minScore`, le respect immédiat du consentement `TALENT_POOL_MATCHING` (acceptation / refus / retrait), l'isolation inter-organisations et le contrôle RBAC (`OWNER`, `ADMIN`, `RECRUITER`, `VIEWER`, `CANDIDATE`).
+- 56 tests automatisés passés dans `src/modules/matching/` (`matching.service.spec.ts`, `matching.edge-cases.spec.ts`, `matching-api.spec.ts`).
+
 

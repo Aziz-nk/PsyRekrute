@@ -328,6 +328,28 @@
       "successPublished": "Offre publiée avec succès.",
       "successClosed": "Offre clôturée avec succès.",
       "successArchived": "Offre archivée avec succès."
+    },
+    "matching": {
+      "viewRecommendations": "Candidats recommandés (Vivier)",
+      "hideRecommendations": "Masquer les recommandations",
+      "panelTitle": "Candidats recommandés pour cette offre",
+      "disclaimer": "Aide à la décision RH : Le score de matching est un indicateur mathématique multicritère et ne constitue ni un diagnostic, ni une évaluation clinique, ni une décision automatisée de recrutement. Les profils du vivier sont strictement anonymisés.",
+      "minScoreLabel": "Seuil minimal (%)",
+      "refreshBtn": "Actualiser",
+      "noCandidates": "Aucun candidat éligible (ayant consenti au vivier) n'atteint le seuil sélectionné pour cette offre.",
+      "anonymizedBadge": "Profil Anonymisé (Loi 09-08)",
+      "totalScore": "Score global",
+      "subFormation": "Formation & Spécialité",
+      "subSkills": "Compétences",
+      "subExperience": "Expérience",
+      "subLocation": "Localisation & Mobilité",
+      "subLanguages": "Langues",
+      "subAvailability": "Disponibilité",
+      "strengths": "Points forts identifiés",
+      "gaps": "Points d'attention / Écarts",
+      "mandatoryOk": "Critères obligatoires satisfaits",
+      "mandatoryMissing": "Critère obligatoire incomplet",
+      "relocationYes": "Mobile nationalement"
     }
   },
   "health": {
