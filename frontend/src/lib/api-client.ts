@@ -399,3 +399,251 @@ export const consentApi = {
     );
   },
 };
+
+export interface OrganizationDetails {
+  id: string;
+  legalName: string;
+  tradeName: string;
+  organizationType: string;
+  identifierIce?: string | null;
+  officialRegistrationNumber?: string | null;
+  website?: string | null;
+  phone: string;
+  email: string;
+  regionCode: string;
+  cityName: string;
+  addressLine: string;
+  verificationStatus: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  verifiedAt?: string | null;
+  isActive: boolean;
+}
+
+export interface UserOrganizationMembership {
+  membershipId: string;
+  role: 'OWNER' | 'ADMIN' | 'RECRUITER' | 'VIEWER';
+  organization: OrganizationDetails;
+}
+
+export interface CreateOrganizationPayload {
+  legalName: string;
+  tradeName: string;
+  organizationType: string;
+  identifierIce?: string;
+  officialRegistrationNumber?: string;
+  website?: string;
+  phone: string;
+  email: string;
+  regionCode: string;
+  cityName: string;
+  addressLine: string;
+}
+
+export interface JobRequiredSkillItem {
+  id?: string;
+  skillId: string;
+  isMandatory: boolean;
+  minRequiredLevel: string;
+  weight: number;
+  skill?: RefSkill;
+}
+
+export interface JobRequiredLanguageItem {
+  id?: string;
+  languageCode: string;
+  minProficiencyLevel: string;
+  isMandatory: boolean;
+}
+
+export interface JobOffer {
+  id: string;
+  organizationId: string;
+  authorMemberId: string;
+  title: string;
+  offerType: 'STAGE_OBSERVATION' | 'STAGE_PFE' | 'EMPLOI';
+  contractSubType: string;
+  requiredDegreeLevel: string;
+  targetSpecialtyId: string;
+  regionCode: string;
+  cityName: string;
+  minExperienceMonths: number;
+  isExperienceMandatory: boolean;
+  startDate: string;
+  durationMonths?: number | null;
+  remunerationStipend?: string | null;
+  description: string;
+  status: 'DRAFT' | 'PUBLISHED' | 'PAUSED' | 'CLOSED' | 'ARCHIVED';
+  publishedAt?: string | null;
+  closedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  organization?: {
+    id: string;
+    tradeName: string;
+    legalName?: string;
+    organizationType: string;
+    cityName: string;
+    regionCode: string;
+    website?: string | null;
+    verificationStatus?: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  };
+  targetSpecialty?: RefSpecialty;
+  requiredSkills?: JobRequiredSkillItem[];
+  requiredLanguages?: JobRequiredLanguageItem[];
+}
+
+export interface CreateJobOfferPayload {
+  title: string;
+  offerType: 'STAGE_OBSERVATION' | 'STAGE_PFE' | 'EMPLOI';
+  contractSubType: string;
+  requiredDegreeLevel: string;
+  targetSpecialtyId: string;
+  regionCode: string;
+  cityName: string;
+  minExperienceMonths?: number;
+  isExperienceMandatory?: boolean;
+  startDate: string;
+  durationMonths?: number;
+  remunerationStipend?: string;
+  description: string;
+  requiredSkills?: Array<{
+    skillId: string;
+    isMandatory?: boolean;
+    minRequiredLevel: string;
+    weight?: number;
+  }>;
+  requiredLanguages?: Array<{
+    languageCode: string;
+    minProficiencyLevel: string;
+    isMandatory?: boolean;
+  }>;
+}
+
+export interface PaginatedMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export const offersApi = {
+  async listPublicOffers(params?: {
+    page?: number;
+    limit?: number;
+    offerType?: string;
+    regionCode?: string;
+    specialtyId?: string;
+    search?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offerType) query.set('offerType', params.offerType);
+    if (params?.regionCode) query.set('regionCode', params.regionCode);
+    if (params?.specialtyId) query.set('specialtyId', params.specialtyId);
+    if (params?.search) query.set('search', params.search);
+    const qs = query.toString();
+
+    return request<{
+      statusCode: number;
+      data: JobOffer[];
+      meta: PaginatedMeta;
+    }>(`/job-offers${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  async getPublicOffer(offerId: string) {
+    return request<{ statusCode: number; data: JobOffer }>(
+      `/job-offers/${offerId}`,
+      { method: 'GET' },
+    );
+  },
+
+  async getMyOrganizations() {
+    return request<{ statusCode: number; data: UserOrganizationMembership[] }>(
+      '/job-offers/my-organizations',
+      { method: 'GET' },
+    );
+  },
+
+  async createOrganization(payload: CreateOrganizationPayload) {
+    return request<{
+      statusCode: number;
+      message: string;
+      data: OrganizationDetails;
+    }>('/organizations', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async listOrgOffers(
+    organizationId: string,
+    params?: { page?: number; limit?: number; status?: string },
+  ) {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.status) query.set('status', params.status);
+    const qs = query.toString();
+
+    return request<{
+      statusCode: number;
+      data: JobOffer[];
+      meta: PaginatedMeta;
+    }>(
+      `/organizations/${organizationId}/job-offers${qs ? `?${qs}` : ''}`,
+      { method: 'GET' },
+    );
+  },
+
+  async getOrgOffer(organizationId: string, offerId: string) {
+    return request<{ statusCode: number; data: JobOffer }>(
+      `/organizations/${organizationId}/job-offers/${offerId}`,
+      { method: 'GET' },
+    );
+  },
+
+  async createOffer(organizationId: string, payload: CreateJobOfferPayload) {
+    return request<{ statusCode: number; message: string; data: JobOffer }>(
+      `/organizations/${organizationId}/job-offers`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
+  async updateOffer(
+    organizationId: string,
+    offerId: string,
+    payload: Partial<CreateJobOfferPayload>,
+  ) {
+    return request<{ statusCode: number; message: string; data: JobOffer }>(
+      `/organizations/${organizationId}/job-offers/${offerId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
+  async publishOffer(organizationId: string, offerId: string) {
+    return request<{ statusCode: number; message: string; data: JobOffer }>(
+      `/organizations/${organizationId}/job-offers/${offerId}/publish`,
+      { method: 'POST' },
+    );
+  },
+
+  async closeOffer(organizationId: string, offerId: string) {
+    return request<{ statusCode: number; message: string; data: JobOffer }>(
+      `/organizations/${organizationId}/job-offers/${offerId}/close`,
+      { method: 'POST' },
+    );
+  },
+
+  async archiveOffer(organizationId: string, offerId: string) {
+    return request<{ statusCode: number; message: string; data: JobOffer }>(
+      `/organizations/${organizationId}/job-offers/${offerId}/archive`,
+      { method: 'POST' },
+    );
+  },
+};

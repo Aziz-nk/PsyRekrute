@@ -10,6 +10,7 @@ import { ConsentModule } from './modules/consent/consent.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { ReferenceModule } from './modules/reference/reference.module';
 import { CandidatesModule } from './modules/candidates/candidates.module';
+import { OffersModule } from './modules/offers/offers.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { CandidatesModule } from './modules/candidates/candidates.module';
     OrganizationsModule,
     ReferenceModule,
     CandidatesModule,
+    OffersModule,
   ],
 })
 export class AppModule {}

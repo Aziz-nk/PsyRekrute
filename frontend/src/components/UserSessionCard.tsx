@@ -9,6 +9,7 @@ export default function UserSessionCard() {
   const tHero = useTranslations('home.hero');
   const tSession = useTranslations('auth.session');
   const tNav = useTranslations('nav');
+  const tOffers = useTranslations('offers.manage');
   const { user, logout, isLoading } = useAuth();
 
   if (isLoading) {
@@ -61,6 +62,14 @@ export default function UserSessionCard() {
               className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-700 transition"
             >
               {tNav('profile')}
+            </Link>
+          ) : user.globalRole === 'ORGANIZATION_USER' ? (
+            <Link
+              href="/organization/offers"
+              data-testid="card-org-offers-btn"
+              className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-700 transition"
+            >
+              {tOffers('navLink')}
             </Link>
           ) : (
             <div />

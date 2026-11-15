@@ -9,6 +9,7 @@ import LanguageSwitcher from './LanguageSwitcher';
 export default function Navbar() {
   const tNav = useTranslations('nav');
   const tSession = useTranslations('auth.session');
+  const tOffers = useTranslations('offers.manage');
   const { user, logout, isLoading } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -41,6 +42,13 @@ export default function Navbar() {
           <Link href="/" className="text-xl font-bold text-brand-700 hover:text-brand-800">
             PsyRekrute
           </Link>
+          <Link
+            href="/offers"
+            data-testid="nav-offers-link"
+            className="text-xs sm:text-sm font-medium text-gray-700 hover:text-brand-600 transition"
+          >
+            {tNav('offers')}
+          </Link>
           {user?.globalRole === 'CANDIDATE' && (
             <Link
               href="/candidate/profile"
@@ -48,6 +56,15 @@ export default function Navbar() {
               className="text-xs sm:text-sm font-medium text-gray-700 hover:text-brand-600 transition"
             >
               {tNav('profile')}
+            </Link>
+          )}
+          {user?.globalRole === 'ORGANIZATION_USER' && (
+            <Link
+              href="/organization/offers"
+              data-testid="nav-org-offers-link"
+              className="text-xs sm:text-sm font-medium text-gray-700 hover:text-brand-600 transition"
+            >
+              {tOffers('navLink')}
             </Link>
           )}
         </div>
