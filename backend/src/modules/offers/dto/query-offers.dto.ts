@@ -51,6 +51,12 @@ export class QueryJobOffersDto {
   @IsIn(MOROCCAN_REGION_CODES)
   regionCode?: string;
 
+  @ApiPropertyOptional({ description: 'Nom de la ville (ex: Rabat, Casablanca)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  cityName?: string;
+
   @ApiPropertyOptional({ description: 'UUID de la spécialité ciblée' })
   @IsOptional()
   @IsUUID()

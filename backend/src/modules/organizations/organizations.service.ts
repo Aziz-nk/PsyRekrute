@@ -184,8 +184,14 @@ export class OrganizationsService {
       );
     }
 
-    const targetUser = await this.prisma.user.findUnique({
-      where: { id: dto.userId },
+    if (!dto.userId && !dto.email) {
+      throw new BadRequestException('Either userId or email must be provided');
+    }
+
+    const targetUser = await this.prisma.user.findFirst({
+      where: dto.userId
+        ? { id: dto.userId }
+        : { email: dto.email?.trim().toLowerCase() },
       select: { id: true, globalRole: true, isActive: true },
     });
 
@@ -209,7 +215,7 @@ export class OrganizationsService {
       where: {
         organizationId_userId: {
           organizationId,
-          userId: dto.userId,
+          userId: targetUser.id,
         },
       },
     });
@@ -224,7 +230,7 @@ export class OrganizationsService {
       const member = await tx.organizationMember.create({
         data: {
           organizationId,
-          userId: dto.userId,
+          userId: targetUser.id,
           role: dto.role,
         },
       });
@@ -238,7 +244,7 @@ export class OrganizationsService {
         userAgent: context.userAgent,
         details: {
           organizationId,
-          targetUserId: dto.userId,
+          targetUserId: targetUser.id,
           assignedRole: dto.role,
         },
       });
@@ -359,6 +365,40 @@ export class OrganizationsService {
       });
 
       return updated;
+    });
+  }
+
+  /**
+   * Consultation administrative des organisations avec statistiques (SYSTEM_ADMIN exclusif, DCTF §4.2).
+   */
+  async listOrganizationsForAdmin(status?: VerificationStatus) {
+    const where: Prisma.OrganizationWhereInput = {};
+    if (status) {
+      where.verificationStatus = status;
+    }
+    return this.prisma.organization.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        _count: {
+          select: {
+            members: true,
+            jobOffers: true,
+          },
+        },
+        members: {
+          where: { role: OrgMemberRole.OWNER },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+              },
+            },
+          },
+          take: 1,
+        },
+      },
     });
   }
 }

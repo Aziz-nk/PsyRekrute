@@ -431,4 +431,105 @@ export class CandidatesService {
 
     return result;
   }
+
+  /**
+   * Favoris candidats (SAVED_OFFERS, Sprint 5)
+   */
+  async listSavedOffers(userId: string) {
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { userId },
+    });
+    if (!profile) {
+      return [];
+    }
+
+    const saved = await this.prisma.savedOffer.findMany({
+      where: { candidateId: profile.id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        jobOffer: {
+          include: {
+            organization: {
+              select: {
+                id: true,
+                tradeName: true,
+                legalName: true,
+                organizationType: true,
+                regionCode: true,
+                cityName: true,
+              },
+            },
+            targetSpecialty: {
+              select: {
+                id: true,
+                titleFr: true,
+                titleAr: true,
+                titleEn: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return saved.map((s) => ({
+      id: s.id,
+      jobOfferId: s.jobOfferId,
+      createdAt: s.createdAt,
+      jobOffer: s.jobOffer,
+    }));
+  }
+
+  async saveOffer(userId: string, jobOfferId: string) {
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { userId },
+    });
+    if (!profile) {
+      throw new NotFoundException('Candidate profile not found');
+    }
+
+    const offer = await this.prisma.jobOffer.findUnique({
+      where: { id: jobOfferId },
+    });
+    if (!offer) {
+      throw new NotFoundException('Job offer not found');
+    }
+
+    const existing = await this.prisma.savedOffer.findUnique({
+      where: {
+        candidateId_jobOfferId: {
+          candidateId: profile.id,
+          jobOfferId,
+        },
+      },
+    });
+    if (existing) {
+      return existing;
+    }
+
+    return this.prisma.savedOffer.create({
+      data: {
+        candidateId: profile.id,
+        jobOfferId,
+      },
+    });
+  }
+
+  async unsaveOffer(userId: string, jobOfferId: string) {
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { userId },
+    });
+    if (!profile) {
+      throw new NotFoundException('Candidate profile not found');
+    }
+
+    await this.prisma.savedOffer.deleteMany({
+      where: {
+        candidateId: profile.id,
+        jobOfferId,
+      },
+    });
+
+    return { unsaved: true };
+  }
 }

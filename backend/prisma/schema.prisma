@@ -160,6 +160,7 @@ model User {
   reportsFiled        Report[]             @relation("ReportAuthor")
   applicationHistory  ApplicationHistory[]
   sessions            UserSession[]
+  reviewedExternalJobs ExternalJobListing[] @relation("ExternalJobReviewer")
 
   @@map("users")
 }
@@ -633,4 +634,44 @@ model UserSession {
   @@index([expiresAt])
   @@index([userId, revokedAt])
   @@map("user_sessions")
+}
+
+// 25. EXTERNAL_JOB_LISTINGS (Agrégateur d'annonces externes du web marocain)
+enum ExternalJobStatus {
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+  EXPIRED
+}
+
+model ExternalJobListing {
+  id                      String            @id @default(uuid()) @db.Uuid
+  title                   String            @db.VarChar(255)
+  organizationName        String            @map("organization_name") @db.VarChar(255)
+  descriptionSummary      String            @map("description_summary") @db.Text
+  cityName                String?           @map("city_name") @db.VarChar(100)
+  regionCode              String?           @map("region_code") @db.VarChar(10)
+  contractType            String?           @map("contract_type") @db.VarChar(50)
+  category                String?           @db.VarChar(100)
+  publicationDate         DateTime?         @map("publication_date")
+  expirationDate          DateTime?         @map("expiration_date")
+  sourceName              String            @map("source_name") @db.VarChar(100)
+  sourceUrl               String            @unique @map("source_url") @db.VarChar(1000)
+  originalApplicationUrl  String?           @map("original_application_url") @db.VarChar(1000)
+  applicationInstructions String?           @map("application_instructions") @db.Text
+  discoveredAt            DateTime          @default(now()) @map("discovered_at")
+  lastCheckedAt           DateTime          @default(now()) @map("last_checked_at")
+  status                  ExternalJobStatus @default(PENDING_REVIEW)
+  contentHash             String            @unique @map("content_hash") @db.VarChar(64)
+  reviewedAt              DateTime?         @map("reviewed_at")
+  reviewedByUserId        String?           @map("reviewed_by_user_id") @db.Uuid
+  rejectionReason         String?           @map("rejection_reason") @db.VarChar(255)
+
+  reviewedByUser          User?             @relation("ExternalJobReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([cityName])
+  @@index([category])
+  @@index([discoveredAt])
+  @@map("external_job_listings")
 }

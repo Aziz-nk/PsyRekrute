@@ -11,6 +11,9 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
 import { ReferenceModule } from './modules/reference/reference.module';
 import { CandidatesModule } from './modules/candidates/candidates.module';
 import { OffersModule } from './modules/offers/offers.module';
+import { ApplicationsModule } from './modules/applications/applications.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ExternalJobsModule } from './modules/external-jobs/external-jobs.module';
 
 @Module({
   imports: [
@@ -30,6 +33,9 @@ import { OffersModule } from './modules/offers/offers.module';
     ReferenceModule,
     CandidatesModule,
     OffersModule,
+    ApplicationsModule,
+    NotificationsModule,
+    ExternalJobsModule,
   ],
 })
 export class AppModule {}

@@ -1,5 +1,12 @@
 import { PrismaClient, GlobalRole, OrgMemberRole, ProfileCategory, AvailabilityStatus, OrganizationType, VerificationStatus, DegreeLevel, ExperienceType, SkillLevel, LanguageProficiency, OfferType } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
+import * as argon2 from 'argon2';
+
+const ARGON2ID_OPTIONS: argon2.Options = {
+  type: argon2.argon2id,
+  memoryCost: 65536,
+  timeCost: 3,
+  parallelism: 4,
+};
 
 const prisma = new PrismaClient();
 
@@ -129,7 +136,7 @@ async function main() {
   console.log('Seeded Matching Configurations.');
 
   // 4. USERS & PROFILES FICTIFS POUR TESTS SPRINT 1
-  const passwordHash = await bcrypt.hash('Password123!Secure', 10);
+  const passwordHash = await argon2.hash('Password123!Secure', ARGON2ID_OPTIONS);
 
   // Admin
   const adminUser = await prisma.user.upsert({

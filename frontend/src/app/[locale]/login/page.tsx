@@ -1,12 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/routing';
 import { useAuth } from '@/context/auth-context';
 import { ApiClientError } from '@/lib/api-client';
 
 export default function LoginPage() {
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams.get('returnUrl');
   const t = useTranslations('auth.login');
   const tErrors = useTranslations('auth.errors');
   const tSession = useTranslations('auth.session');
@@ -38,8 +41,12 @@ export default function LoginPage() {
         email: trimmedEmail,
         password,
       });
-      // Redirect home after successful login
-      router.push('/');
+      // Redirection vers returnUrl si spécifié (ex: retour direct à l'offre après auth), sinon accueil
+      if (returnUrl && returnUrl.startsWith('/')) {
+        router.push(returnUrl);
+      } else {
+        router.push('/');
+      }
     } catch (err: unknown) {
       if (err instanceof ApiClientError) {
         if (err.statusCode === 401) {
@@ -182,7 +189,11 @@ export default function LoginPage() {
         <div className="border-t border-gray-100 pt-4 text-center text-sm text-gray-600">
           <span>{t('noAccount')} </span>
           <Link
-            href="/register"
+            href={
+              returnUrl
+                ? `/register?returnUrl=${encodeURIComponent(returnUrl)}`
+                : '/register'
+            }
             data-testid="goto-register-link"
             className="font-semibold text-brand-600 hover:text-brand-700 underline"
           >

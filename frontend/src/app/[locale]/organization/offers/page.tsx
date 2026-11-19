@@ -5,11 +5,17 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/routing';
 import { useAuth } from '@/context/auth-context';
 import {
+  applicationsApi,
+  ApplicationStatus,
   CreateJobOfferPayload,
+  InterviewMode,
   JobOffer,
   MoroccanRegion,
   offersApi,
+  OrgMemberItem,
+  orgMembersApi,
   RecommendedCandidate,
+  RecruiterApplication,
   referenceApi,
   RefSkill,
   RefSpecialty,
@@ -19,6 +25,8 @@ import {
 export default function OrganizationOffersPage() {
   const t = useTranslations('offers');
   const tProfile = useTranslations('candidate.profile');
+  const tApps = useTranslations('applications');
+  const tMembers = useTranslations('orgMembers');
   const locale = useLocale();
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
@@ -100,6 +108,101 @@ export default function OrganizationOffersPage() {
   >([]);
   const [isLoadingRecommendations, setIsLoadingRecommendations] =
     useState(false);
+  const [invitingCandidateId, setInvitingCandidateId] = useState<string | null>(
+    null,
+  );
+
+  // Panneau de gestion des candidatures reçues & invitations (Sprint 4)
+  const [expandedAppsOfferId, setExpandedAppsOfferId] = useState<string | null>(
+    null,
+  );
+  const [offerApplications, setOfferApplications] = useState<
+    RecruiterApplication[]
+  >([]);
+  const [isLoadingApplications, setIsLoadingApplications] = useState(false);
+  const [activeRecruiterForm, setActiveRecruiterForm] = useState<{
+    appId: string;
+    action: 'INTERVIEW' | 'OFFER' | 'REJECT';
+  } | null>(null);
+  const [interviewDateInput, setInterviewDateInput] = useState('');
+  const [interviewModeInput, setInterviewModeInput] =
+    useState<InterviewMode>('IN_PERSON');
+  const [interviewLocationInput, setInterviewLocationInput] = useState('');
+  const [offerDetailsInput, setOfferDetailsInput] = useState('');
+  const [offerDeadlineInput, setOfferDeadlineInput] = useState('');
+  const [recruiterCommentInput, setRecruiterCommentInput] = useState('');
+  const [transitioningAppId, setTransitioningAppId] = useState<string | null>(
+    null,
+  );
+  const [downloadingCvAppId, setDownloadingCvAppId] = useState<string | null>(
+    null,
+  );
+
+  // Gestion des membres d'organisation (Sprint 5)
+  const [members, setMembers] = useState<OrgMemberItem[]>([]);
+  const [isMembersLoading, setIsMembersLoading] = useState(false);
+  const [showMembersPanel, setShowMembersPanel] = useState(false);
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [newMemberRole, setNewMemberRole] = useState<
+    'ADMIN' | 'RECRUITER' | 'VIEWER'
+  >('RECRUITER');
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [memberError, setMemberError] = useState<string | null>(null);
+  const [memberSuccess, setMemberSuccess] = useState<string | null>(null);
+
+  const loadOrgMembers = useCallback(async (orgId: string) => {
+    if (!orgId) return;
+    setIsMembersLoading(true);
+    try {
+      const res = await orgMembersApi.listMembers(orgId);
+      setMembers(res.data || []);
+    } catch {
+      setMembers([]);
+    } finally {
+      setIsMembersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedOrgId) {
+      loadOrgMembers(selectedOrgId);
+    }
+  }, [selectedOrgId, loadOrgMembers]);
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrgId || !newMemberEmail.trim()) return;
+    setIsAddingMember(true);
+    setMemberError(null);
+    setMemberSuccess(null);
+    try {
+      await orgMembersApi.addMember(selectedOrgId, {
+        email: newMemberEmail.trim(),
+        role: newMemberRole,
+      });
+      setMemberSuccess(tMembers('memberAdded'));
+      setNewMemberEmail('');
+      await loadOrgMembers(selectedOrgId);
+    } catch (err: any) {
+      setMemberError(err.message || 'Failed to add member');
+    } finally {
+      setIsAddingMember(false);
+    }
+  };
+
+  const handleRemoveMember = async (targetUserId: string) => {
+    if (!selectedOrgId) return;
+    if (!window.confirm(tMembers('confirmRemove'))) return;
+    setMemberError(null);
+    setMemberSuccess(null);
+    try {
+      await orgMembersApi.removeMember(selectedOrgId, targetUserId);
+      setMemberSuccess(tMembers('memberRemoved'));
+      await loadOrgMembers(selectedOrgId);
+    } catch (err: any) {
+      setMemberError(err.message || 'Failed to remove member');
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -378,6 +481,145 @@ export default function OrganizationOffersPage() {
     }
     setExpandedOfferId(offerId);
     await fetchRecommendations(offerId, minScoreFilter);
+  };
+
+  const fetchOfferApplications = async (offerId: string) => {
+    if (!selectedOrgId) return;
+    setIsLoadingApplications(true);
+    setError(null);
+    try {
+      const res = await applicationsApi.listOfferApplications(
+        selectedOrgId,
+        offerId,
+      );
+      setOfferApplications(res.data);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Error loading offer applications',
+      );
+    } finally {
+      setIsLoadingApplications(false);
+    }
+  };
+
+  const toggleApplicationsPanel = async (offerId: string) => {
+    if (expandedAppsOfferId === offerId) {
+      setExpandedAppsOfferId(null);
+      setOfferApplications([]);
+      setActiveRecruiterForm(null);
+      return;
+    }
+    setExpandedAppsOfferId(offerId);
+    setActiveRecruiterForm(null);
+    await fetchOfferApplications(offerId);
+  };
+
+  const handleInviteCandidate = async (
+    offerId: string,
+    candidateId: string,
+  ) => {
+    setInvitingCandidateId(candidateId);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      await applicationsApi.inviteCandidate({
+        jobOfferId: offerId,
+        candidateId,
+      });
+      setSuccessMsg(tApps('recruiter.inviteSuccess'));
+      await fetchRecommendations(offerId, minScoreFilter);
+      if (expandedAppsOfferId === offerId) {
+        await fetchOfferApplications(offerId);
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Error inviting candidate',
+      );
+    } finally {
+      setInvitingCandidateId(null);
+    }
+  };
+
+  const openRecruiterActionForm = (
+    appId: string,
+    action: 'INTERVIEW' | 'OFFER' | 'REJECT',
+  ) => {
+    const defaultInterview = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 16);
+    const defaultDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    setInterviewDateInput(defaultInterview);
+    setInterviewModeInput('IN_PERSON');
+    setInterviewLocationInput(activeOrg?.cityName || 'Cabinet / Visio');
+    setOfferDetailsInput('');
+    setOfferDeadlineInput(defaultDeadline);
+    setRecruiterCommentInput('');
+    setActiveRecruiterForm({ appId, action });
+  };
+
+  const handleRecruiterTransition = async (
+    offerId: string,
+    applicationId: string,
+    targetStatus: ApplicationStatus,
+  ) => {
+    if (!selectedOrgId) return;
+    setTransitioningAppId(applicationId);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      await applicationsApi.transitionByRecruiter(selectedOrgId, applicationId, {
+        targetStatus,
+        comment: recruiterCommentInput.trim() || undefined,
+        interviewDate:
+          targetStatus === 'INTERVIEW_PROPOSED'
+            ? new Date(interviewDateInput).toISOString()
+            : undefined,
+        interviewMode:
+          targetStatus === 'INTERVIEW_PROPOSED'
+            ? interviewModeInput
+            : undefined,
+        interviewLocationOrLink:
+          targetStatus === 'INTERVIEW_PROPOSED'
+            ? interviewLocationInput.trim()
+            : undefined,
+        hiringOfferDetails:
+          targetStatus === 'OFFER_EXTENDED'
+            ? offerDetailsInput.trim()
+            : undefined,
+        hiringOfferDeadline:
+          targetStatus === 'OFFER_EXTENDED' && offerDeadlineInput
+            ? new Date(offerDeadlineInput).toISOString()
+            : undefined,
+      });
+      setActiveRecruiterForm(null);
+      setSuccessMsg(tApps('recruiter.transitionSuccess'));
+      await fetchOfferApplications(offerId);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Error updating application status',
+      );
+    } finally {
+      setTransitioningAppId(null);
+    }
+  };
+
+  const handleDownloadCandidateCv = async (app: RecruiterApplication) => {
+    setDownloadingCvAppId(app.id);
+    setError(null);
+    try {
+      const res = await applicationsApi.getCvDownloadUrl(app.candidateId);
+      window.open(res.data.downloadUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error downloading CV');
+    } finally {
+      setDownloadingCvAppId(null);
+    }
   };
 
   const addSkillToOffer = () => {
@@ -740,6 +982,231 @@ export default function OrganizationOffersPage() {
             {activeRole === 'VIEWER' && (
               <div className="mt-3 text-xs text-gray-500 italic">
                 {t('manage.viewerNotice')}
+              </div>
+            )}
+
+            {/* Toggle Panel Membres & Collaborateurs (Sprint 5) */}
+            <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setShowMembersPanel(!showMembersPanel)}
+                data-testid="toggle-members-panel-btn"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition"
+              >
+                <svg
+                  className="h-4 w-4 text-gray-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+                <span>
+                  {tMembers('title')} ({members.length})
+                </span>
+                <span className="text-[10px] text-gray-400">
+                  {showMembersPanel ? '▲' : '▼'}
+                </span>
+              </button>
+            </div>
+
+            {/* Panneau dépliable de gestion des membres */}
+            {showMembersPanel && (
+              <div
+                data-testid="org-members-panel"
+                className="mt-4 pt-4 border-t border-gray-200"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900">
+                      {tMembers('title')}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {tMembers('subtitle')}
+                    </p>
+                  </div>
+                </div>
+
+                {memberSuccess && (
+                  <div
+                    data-testid="member-success-banner"
+                    className="mb-4 rounded-lg bg-green-50 p-3 text-xs text-green-800 border border-green-200"
+                  >
+                    {memberSuccess}
+                  </div>
+                )}
+                {memberError && (
+                  <div
+                    data-testid="member-error-banner"
+                    className="mb-4 rounded-lg bg-red-50 p-3 text-xs text-red-800 border border-red-200"
+                  >
+                    {memberError}
+                  </div>
+                )}
+
+                {/* Formulaire d'ajout de membre si OWNER ou ADMIN */}
+                {(activeRole === 'OWNER' || activeRole === 'ADMIN') && (
+                  <form
+                    onSubmit={handleAddMember}
+                    data-testid="add-member-form"
+                    className="mb-5 rounded-xl border border-gray-200 bg-gray-50 p-4"
+                  >
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700 mb-3">
+                      {tMembers('addMember')}
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          {tMembers('emailOrUserId')}
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={newMemberEmail}
+                          onChange={(e) => setNewMemberEmail(e.target.value)}
+                          placeholder={tMembers('emailPlaceholder')}
+                          data-testid="new-member-email-input"
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          {tMembers('role')}
+                        </label>
+                        <select
+                          value={newMemberRole}
+                          onChange={(e) =>
+                            setNewMemberRole(
+                              e.target.value as 'ADMIN' | 'RECRUITER' | 'VIEWER',
+                            )
+                          }
+                          data-testid="new-member-role-select"
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                        >
+                          {activeRole === 'OWNER' && (
+                            <option value="ADMIN">
+                              {tMembers('roleAdmin')}
+                            </option>
+                          )}
+                          <option value="RECRUITER">
+                            {tMembers('roleRecruiter')}
+                          </option>
+                          <option value="VIEWER">
+                            {tMembers('roleViewer')}
+                          </option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={isAddingMember}
+                        data-testid="submit-add-member-btn"
+                        className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-50 transition"
+                      >
+                        {isAddingMember
+                          ? tMembers('adding')
+                          : tMembers('addMember')}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Table des membres existants */}
+                {isMembersLoading ? (
+                  <div className="flex justify-center py-6">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                    <table className="min-w-full divide-y divide-gray-200 text-xs">
+                      <thead className="bg-gray-50 text-gray-600 font-semibold">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left rtl:text-right">
+                            Utilisateur
+                          </th>
+                          <th className="px-4 py-2.5 text-left rtl:text-right">
+                            Rôle
+                          </th>
+                          <th className="px-4 py-2.5 text-left rtl:text-right">
+                            Date d&apos;ajout
+                          </th>
+                          <th className="px-4 py-2.5 text-right rtl:text-left">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {members.map((m) => {
+                          const isSelf = m.userId === user?.id;
+                          const isTargetOwner = m.role === 'OWNER';
+                          const cannotRemove =
+                            isTargetOwner ||
+                            (activeRole === 'ADMIN' && m.role === 'ADMIN') ||
+                            (activeRole !== 'OWNER' && activeRole !== 'ADMIN');
+
+                          return (
+                            <tr
+                              key={m.id}
+                              data-testid={`member-row-${m.userId}`}
+                              className="hover:bg-gray-50/70"
+                            >
+                              <td className="px-4 py-2.5 font-medium text-gray-900">
+                                {m.user?.email || m.userId}
+                                {isSelf && (
+                                  <span className="ml-2 text-[10px] text-gray-400">
+                                    (Vous)
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <span
+                                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
+                                    m.role === 'OWNER'
+                                      ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                      : m.role === 'ADMIN'
+                                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                        : m.role === 'RECRUITER'
+                                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                          : 'bg-gray-100 text-gray-700 border-gray-200'
+                                  }`}
+                                >
+                                  {m.role}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 text-gray-500">
+                                {new Date(m.createdAt).toLocaleDateString()}
+                              </td>
+                              <td className="px-4 py-2.5 text-right rtl:text-left">
+                                {cannotRemove ? (
+                                  <span className="text-[11px] text-gray-400 italic">
+                                    {isTargetOwner
+                                      ? tMembers('ownerCannotBeRemoved')
+                                      : '—'}
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveMember(m.userId)}
+                                    data-testid={`remove-member-btn-${m.userId}`}
+                                    className="rounded border border-red-200 px-2.5 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50 transition"
+                                  >
+                                    {tMembers('removeMember')}
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1293,6 +1760,17 @@ export default function OrganizationOffersPage() {
                               : t('matching.viewRecommendations')}
                           </button>
                         )}
+
+                      <button
+                        type="button"
+                        onClick={() => toggleApplicationsPanel(offer.id)}
+                        data-testid={`view-applications-btn-${offer.id}`}
+                        className="rounded-lg border border-brand-300 bg-brand-50 px-3.5 py-1.5 text-xs font-semibold text-brand-800 hover:bg-brand-100 transition"
+                      >
+                        {expandedAppsOfferId === offer.id
+                          ? tApps('recruiter.hideApplicationsBtn')
+                          : tApps('recruiter.viewApplicationsBtn')}
+                      </button>
                     </div>
                   </div>
 
@@ -1396,7 +1874,7 @@ export default function OrganizationOffersPage() {
                                   )}
                                 </div>
 
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                   <span
                                     className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${
                                       cand.mandatoryCriteriaSatisfied
@@ -1415,6 +1893,45 @@ export default function OrganizationOffersPage() {
                                     {t('matching.totalScore')} :{' '}
                                     {cand.totalScore.toFixed(2)}%
                                   </span>
+
+                                  {canWrite &&
+                                    offer.status === 'PUBLISHED' &&
+                                    (cand.hasApplied ? (
+                                      <span
+                                        data-testid={`candidate-applied-badge-${cand.candidateId}`}
+                                        className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"
+                                      >
+                                        {tApps('recruiter.appliedBadge')}
+                                      </span>
+                                    ) : cand.isInvited ? (
+                                      <span
+                                        data-testid={`candidate-invited-badge-${cand.candidateId}`}
+                                        className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700"
+                                      >
+                                        {tApps('recruiter.invitedBadge')}
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          invitingCandidateId ===
+                                          cand.candidateId
+                                        }
+                                        onClick={() =>
+                                          handleInviteCandidate(
+                                            offer.id,
+                                            cand.candidateId,
+                                          )
+                                        }
+                                        data-testid={`invite-candidate-btn-${cand.candidateId}`}
+                                        className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 transition"
+                                      >
+                                        {invitingCandidateId ===
+                                        cand.candidateId
+                                          ? tApps('recruiter.inviting')
+                                          : tApps('recruiter.inviteBtn')}
+                                      </button>
+                                    ))}
                                 </div>
                               </div>
 
@@ -1502,6 +2019,446 @@ export default function OrganizationOffersPage() {
                               </div>
                             </div>
                           ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Panneau de gestion des candidatures reçues & invitations (Sprint 4) */}
+                  {expandedAppsOfferId === offer.id && (
+                    <div
+                      data-testid={`applications-panel-${offer.id}`}
+                      className="mt-6 border-t border-gray-100 pt-5 space-y-4"
+                    >
+                      <div className="flex items-center justify-between">
+                        <h4
+                          data-testid="applications-panel-title"
+                          className="text-sm font-bold text-gray-900"
+                        >
+                          {tApps('recruiter.panelTitle')}
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => fetchOfferApplications(offer.id)}
+                          className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                          {t('matching.refreshBtn')}
+                        </button>
+                      </div>
+
+                      {isLoadingApplications ? (
+                        <div className="flex justify-center py-6">
+                          <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+                        </div>
+                      ) : offerApplications.length === 0 ? (
+                        <div
+                          data-testid="no-offer-applications"
+                          className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center text-xs text-gray-600"
+                        >
+                          {tApps('recruiter.noApplications')}
+                        </div>
+                      ) : (
+                        <div
+                          data-testid="offer-applications-list"
+                          className="space-y-4"
+                        >
+                          {offerApplications.map((app) => {
+                            const isBusy = transitioningAppId === app.id;
+                            const canReject = [
+                              'SUBMITTED',
+                              'REVIEWING',
+                              'INTERVIEW_PROPOSED',
+                              'INTERVIEW_CONFIRMED',
+                              'INTERVIEW_RESCHEDULE_REQUESTED',
+                              'OFFER_EXTENDED',
+                            ].includes(app.currentStatus);
+
+                            return (
+                              <div
+                                key={app.id}
+                                data-testid={`recruiter-application-card-${app.id}`}
+                                className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 space-y-3"
+                              >
+                                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                                  <div>
+                                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                                      <span
+                                        data-testid={`recruiter-app-candidate-name-${app.id}`}
+                                        className="text-sm font-bold text-gray-900"
+                                      >
+                                        {app.candidate.displayName}
+                                      </span>
+
+                                      {app.isAnonymized ? (
+                                        <span
+                                          data-testid={`recruiter-app-anonymized-badge-${app.id}`}
+                                          className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700 border border-indigo-200"
+                                        >
+                                          {t('matching.anonymizedBadge')}
+                                        </span>
+                                      ) : (
+                                        <span
+                                          data-testid={`recruiter-app-unmasked-badge-${app.id}`}
+                                          className="rounded-full bg-green-50 px-2.5 py-0.5 text-[11px] font-semibold text-green-700 border border-green-200"
+                                        >
+                                          {tApps('recruiter.unmaskedBadge')}
+                                        </span>
+                                      )}
+
+                                      <span
+                                        data-testid={`recruiter-app-status-${app.id}`}
+                                        className="rounded-full bg-brand-600 px-2.5 py-0.5 text-[11px] font-semibold text-white"
+                                      >
+                                        {tApps(`status.${app.currentStatus}`)}
+                                      </span>
+
+                                      <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] text-gray-700">
+                                        {tApps(`origin.${app.origin}`)}
+                                      </span>
+
+                                      {app.initialMatchScore !== null && (
+                                        <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700 border border-brand-200">
+                                          {Number(
+                                            app.initialMatchScore,
+                                          ).toFixed(0)}
+                                          %
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {app.isAnonymized ? (
+                                      <p className="text-xs text-indigo-800">
+                                        {tApps('recruiter.anonymizedNotice')} •{' '}
+                                        {app.candidate.cityName} (
+                                        {app.candidate.regionCode})
+                                      </p>
+                                    ) : (
+                                      <div
+                                        data-testid={`recruiter-app-contact-${app.id}`}
+                                        className="text-xs text-gray-700 space-y-0.5"
+                                      >
+                                        <div>
+                                          <strong>Email :</strong>{' '}
+                                          {app.candidate.email || '—'} •{' '}
+                                          <strong>Tél :</strong>{' '}
+                                          {app.candidate.phone || '—'} •{' '}
+                                          <strong>Ville :</strong>{' '}
+                                          {app.candidate.cityName} (
+                                          {app.candidate.regionCode})
+                                        </div>
+                                        {app.candidate.bio && (
+                                          <p className="text-gray-600 italic">
+                                            {app.candidate.bio}
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {!app.isAnonymized &&
+                                    app.candidate.hasCv && (
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          downloadingCvAppId === app.id
+                                        }
+                                        onClick={() =>
+                                          handleDownloadCandidateCv(app)
+                                        }
+                                        data-testid={`download-cv-btn-${app.id}`}
+                                        className="rounded-lg border border-brand-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50"
+                                      >
+                                        {downloadingCvAppId === app.id
+                                          ? tApps('recruiter.downloadingCv')
+                                          : tApps('recruiter.downloadCvBtn')}
+                                      </button>
+                                    )}
+                                </div>
+
+                                {/* Détails d'entretien ou d'offre déjà renseignés */}
+                                {app.interviewDate && (
+                                  <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900">
+                                    <strong>
+                                      {tApps(
+                                        'candidateActions.interviewBoxTitle',
+                                      )}{' '}
+                                      :
+                                    </strong>{' '}
+                                    {new Date(app.interviewDate).toLocaleString(
+                                      locale,
+                                    )}{' '}
+                                    •{' '}
+                                    {app.interviewMode
+                                      ? tApps(
+                                          `interviewMode.${app.interviewMode}`,
+                                        )
+                                      : ''}{' '}
+                                    • {app.interviewLocationOrLink}
+                                  </div>
+                                )}
+
+                                {app.hiringOfferDetails && (
+                                  <div className="rounded-lg border border-teal-200 bg-teal-50/70 p-2.5 text-xs text-teal-900">
+                                    <strong>
+                                      {tApps('candidateActions.offerBoxTitle')} :
+                                    </strong>{' '}
+                                    {app.hiringOfferDetails}
+                                  </div>
+                                )}
+
+                                {/* Boutons d'action FSM Recruteur */}
+                                {canWrite && (
+                                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                                    {app.currentStatus === 'SUBMITTED' && (
+                                      <button
+                                        type="button"
+                                        disabled={isBusy}
+                                        onClick={() =>
+                                          handleRecruiterTransition(
+                                            offer.id,
+                                            app.id,
+                                            'REVIEWING',
+                                          )
+                                        }
+                                        data-testid={`recruiter-reviewing-btn-${app.id}`}
+                                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                                      >
+                                        {tApps('recruiter.markReviewing')}
+                                      </button>
+                                    )}
+
+                                    {(app.currentStatus === 'REVIEWING' ||
+                                      app.currentStatus ===
+                                        'INTERVIEW_RESCHEDULE_REQUESTED') && (
+                                      <button
+                                        type="button"
+                                        disabled={isBusy}
+                                        onClick={() =>
+                                          openRecruiterActionForm(
+                                            app.id,
+                                            'INTERVIEW',
+                                          )
+                                        }
+                                        data-testid={`recruiter-propose-interview-btn-${app.id}`}
+                                        className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                                      >
+                                        {tApps('recruiter.proposeInterview')}
+                                      </button>
+                                    )}
+
+                                    {app.currentStatus ===
+                                      'INTERVIEW_CONFIRMED' && (
+                                      <button
+                                        type="button"
+                                        disabled={isBusy}
+                                        onClick={() =>
+                                          openRecruiterActionForm(
+                                            app.id,
+                                            'OFFER',
+                                          )
+                                        }
+                                        data-testid={`recruiter-extend-offer-btn-${app.id}`}
+                                        className="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-50"
+                                      >
+                                        {tApps('recruiter.extendOffer')}
+                                      </button>
+                                    )}
+
+                                    {canReject && (
+                                      <button
+                                        type="button"
+                                        disabled={isBusy}
+                                        onClick={() =>
+                                          openRecruiterActionForm(
+                                            app.id,
+                                            'REJECT',
+                                          )
+                                        }
+                                        data-testid={`recruiter-reject-btn-${app.id}`}
+                                        className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                                      >
+                                        {tApps('recruiter.rejectBtn')}
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Formulaire inline pour Entretien / Proposition / Refus */}
+                                {activeRecruiterForm?.appId === app.id && (
+                                  <div
+                                    data-testid={`recruiter-transition-form-${app.id}`}
+                                    className="rounded-xl border border-gray-300 bg-white p-3 space-y-3"
+                                  >
+                                    {activeRecruiterForm.action ===
+                                      'INTERVIEW' && (
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                        <div>
+                                          <label className="block text-[11px] font-medium text-gray-700 mb-1">
+                                            {tApps(
+                                              'recruiter.interviewDateLabel',
+                                            )}{' '}
+                                            *
+                                          </label>
+                                          <input
+                                            type="datetime-local"
+                                            value={interviewDateInput}
+                                            onChange={(e) =>
+                                              setInterviewDateInput(
+                                                e.target.value,
+                                              )
+                                            }
+                                            data-testid={`interview-date-input-${app.id}`}
+                                            className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-900"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[11px] font-medium text-gray-700 mb-1">
+                                            {tApps(
+                                              'recruiter.interviewModeLabel',
+                                            )}{' '}
+                                            *
+                                          </label>
+                                          <select
+                                            value={interviewModeInput}
+                                            onChange={(e) =>
+                                              setInterviewModeInput(
+                                                e.target.value as InterviewMode,
+                                              )
+                                            }
+                                            data-testid={`interview-mode-select-${app.id}`}
+                                            className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900"
+                                          >
+                                            <option value="IN_PERSON">
+                                              {tApps('interviewMode.IN_PERSON')}
+                                            </option>
+                                            <option value="REMOTE_VIDEO">
+                                              {tApps(
+                                                'interviewMode.REMOTE_VIDEO',
+                                              )}
+                                            </option>
+                                            <option value="PHONE">
+                                              {tApps('interviewMode.PHONE')}
+                                            </option>
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="block text-[11px] font-medium text-gray-700 mb-1">
+                                            {tApps(
+                                              'recruiter.interviewLocationLabel',
+                                            )}{' '}
+                                            *
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={interviewLocationInput}
+                                            onChange={(e) =>
+                                              setInterviewLocationInput(
+                                                e.target.value,
+                                              )
+                                            }
+                                            data-testid={`interview-location-input-${app.id}`}
+                                            className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-900"
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {activeRecruiterForm.action === 'OFFER' && (
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                        <div className="sm:col-span-2">
+                                          <label className="block text-[11px] font-medium text-gray-700 mb-1">
+                                            {tApps(
+                                              'recruiter.offerDetailsLabel',
+                                            )}{' '}
+                                            *
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={offerDetailsInput}
+                                            onChange={(e) =>
+                                              setOfferDetailsInput(
+                                                e.target.value,
+                                              )
+                                            }
+                                            data-testid={`offer-details-input-${app.id}`}
+                                            className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-900"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[11px] font-medium text-gray-700 mb-1">
+                                            {tApps(
+                                              'recruiter.offerDeadlineLabel',
+                                            )}
+                                          </label>
+                                          <input
+                                            type="date"
+                                            value={offerDeadlineInput}
+                                            onChange={(e) =>
+                                              setOfferDeadlineInput(
+                                                e.target.value,
+                                              )
+                                            }
+                                            data-testid={`offer-deadline-input-${app.id}`}
+                                            className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-900"
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    <div>
+                                      <label className="block text-[11px] font-medium text-gray-700 mb-1">
+                                        {tApps('recruiter.commentLabel')}
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={recruiterCommentInput}
+                                        onChange={(e) =>
+                                          setRecruiterCommentInput(
+                                            e.target.value,
+                                          )
+                                        }
+                                        data-testid={`recruiter-comment-input-${app.id}`}
+                                        className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-900"
+                                      />
+                                    </div>
+
+                                    <div className="flex justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setActiveRecruiterForm(null)
+                                        }
+                                        className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700"
+                                      >
+                                        {tApps('recruiter.cancelAction')}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={isBusy}
+                                        onClick={() =>
+                                          handleRecruiterTransition(
+                                            offer.id,
+                                            app.id,
+                                            activeRecruiterForm.action ===
+                                              'INTERVIEW'
+                                              ? 'INTERVIEW_PROPOSED'
+                                              : activeRecruiterForm.action ===
+                                                  'OFFER'
+                                                ? 'OFFER_EXTENDED'
+                                                : 'REJECTED',
+                                          )
+                                        }
+                                        data-testid={`confirm-recruiter-transition-btn-${app.id}`}
+                                        className="rounded-lg bg-brand-600 px-3.5 py-1 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+                                      >
+                                        {tApps('recruiter.confirmAction')}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

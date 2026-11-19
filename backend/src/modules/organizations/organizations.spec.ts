@@ -540,6 +540,35 @@ describe('M5 – Organisations (Socle minimal, membres, rôles, vérification et
         .expect(403);
     });
 
+    it('permet à SYSTEM_ADMIN de lister les organisations avec filtres de statut', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/admin/organizations')
+        .set('Authorization', `Bearer ${users.admin.token}`)
+        .expect(200);
+
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+
+      // Filtrer par statut VERIFIED
+      const resVerified = await request(app.getHttpServer())
+        .get('/api/v1/admin/organizations?status=VERIFIED')
+        .set('Authorization', `Bearer ${users.admin.token}`)
+        .expect(200);
+
+      expect(Array.isArray(resVerified.body.data)).toBe(true);
+      expect(
+        resVerified.body.data.every(
+          (o: { verificationStatus: string }) => o.verificationStatus === 'VERIFIED',
+        ),
+      ).toBe(true);
+
+      // Interdit aux non-admins
+      await request(app.getHttpServer())
+        .get('/api/v1/admin/organizations')
+        .set('Authorization', `Bearer ${users.orgUser1.token}`)
+        .expect(403);
+    });
+
     it('renvoie 404 si l organisation est introuvable lors de la vérification administrative', async () => {
       await request(app.getHttpServer())
         .patch(

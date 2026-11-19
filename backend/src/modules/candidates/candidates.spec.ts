@@ -9,6 +9,7 @@ import {
   ProfileCategory,
   SkillLevel,
   LanguageProficiency,
+  OfferType,
 } from '@prisma/client';
 import * as request from 'supertest';
 import { PrismaModule } from '../../database/prisma.module';
@@ -390,6 +391,126 @@ describe('M3.1 – Référentiels et Profil Candidat minimal', () => {
         .expect(200);
 
       expect(res.body.data).toHaveProperty('downloadUrl');
+    });
+  });
+
+  describe('6. Favoris Candidat (SAVED_OFFERS, Sprint 5)', () => {
+    let testOfferId = '';
+    let testOrgId = '';
+
+    beforeAll(async () => {
+      const org = await prisma.organization.create({
+        data: {
+          legalName: `Org Fav Test ${Date.now()}`,
+          tradeName: 'Org Fav',
+          organizationType: 'CABINET_LIBERAL',
+          phone: '+212522000111',
+          email: `orgfav.${Date.now()}@psyrekrute.ma`,
+          regionCode: 'MA-06',
+          cityName: 'Casablanca',
+          addressLine: 'Bd Zerktouni',
+          verificationStatus: 'VERIFIED',
+          members: {
+            create: {
+              userId: users.orgUser.userId,
+              role: 'OWNER',
+            },
+          },
+        },
+      });
+      testOrgId = org.id;
+
+      const member = await prisma.organizationMember.findFirst({
+        where: { organizationId: org.id },
+      });
+
+      const offer = await prisma.jobOffer.create({
+        data: {
+          organizationId: org.id,
+          authorMemberId: member!.id,
+          targetSpecialtyId: specialtyId,
+          title: 'Psychologue Clinicien Favori',
+          description: 'Description du poste de test favori',
+          offerType: OfferType.EMPLOI,
+          contractSubType: 'CDI',
+          requiredDegreeLevel: DegreeLevel.BAC_5_MASTER,
+          startDate: new Date(),
+          regionCode: 'MA-06',
+          cityName: 'Casablanca',
+          status: 'PUBLISHED',
+        },
+      });
+      testOfferId = offer.id;
+    });
+
+    afterAll(async () => {
+      if (testOfferId) {
+        await prisma.savedOffer.deleteMany({ where: { jobOfferId: testOfferId } });
+        await prisma.jobOffer.deleteMany({ where: { id: testOfferId } });
+      }
+      if (testOrgId) {
+        await prisma.organizationMember.deleteMany({ where: { organizationId: testOrgId } });
+        await prisma.organization.deleteMany({ where: { id: testOrgId } });
+      }
+    });
+
+    it('ajoute une offre aux favoris du candidat (POST /me/saved-offers/:offerId)', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/candidates/me/saved-offers/${testOfferId}`)
+        .set('Authorization', `Bearer ${users.candA.token}`)
+        .expect(200);
+
+      expect(res.body.message).toBe('Offer saved to favorites');
+      expect(res.body.data.jobOfferId).toBe(testOfferId);
+    });
+
+    it('consulte la liste des favoris du candidat (GET /me/saved-offers)', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/candidates/me/saved-offers')
+        .set('Authorization', `Bearer ${users.candA.token}`)
+        .expect(200);
+
+      expect(Array.isArray(res.body.data)).toBe(true);
+      const found = res.body.data.find(
+        (f: { jobOfferId: string; jobOffer: { title: string; organization: { tradeName: string } } }) =>
+          f.jobOfferId === testOfferId,
+      );
+      expect(found).toBeDefined();
+      expect(found.jobOffer.title).toBe('Psychologue Clinicien Favori');
+      expect(found.jobOffer.organization.tradeName).toBe('Org Fav');
+    });
+
+    it('gère l idempotence lors d un ajout répété', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/candidates/me/saved-offers/${testOfferId}`)
+        .set('Authorization', `Bearer ${users.candA.token}`)
+        .expect(200);
+
+      expect(res.body.data.jobOfferId).toBe(testOfferId);
+    });
+
+    it('retire une offre des favoris du candidat (DELETE /me/saved-offers/:offerId)', async () => {
+      const res = await request(app.getHttpServer())
+        .delete(`/api/v1/candidates/me/saved-offers/${testOfferId}`)
+        .set('Authorization', `Bearer ${users.candA.token}`)
+        .expect(200);
+
+      expect(res.body.message).toBe('Offer removed from favorites');
+
+      const check = await request(app.getHttpServer())
+        .get('/api/v1/candidates/me/saved-offers')
+        .set('Authorization', `Bearer ${users.candA.token}`)
+        .expect(200);
+
+      const found = check.body.data.find((f: { jobOfferId: string }) => f.jobOfferId === testOfferId);
+      expect(found).toBeUndefined();
+    });
+
+    it('interdit l accès aux favoris pour un ORGANIZATION_USER (403 Forbidden)', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/candidates/me/saved-offers')
+        .set('Authorization', `Bearer ${users.orgUser.token}`)
+        .expect(403);
     });
   });
 });

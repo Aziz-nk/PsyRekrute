@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { useAuth } from '@/context/auth-context';
+import { notificationsApi } from '@/lib/api-client';
 import LanguageSwitcher from './LanguageSwitcher';
 
 export default function Navbar() {
@@ -12,6 +13,26 @@ export default function Navbar() {
   const tOffers = useTranslations('offers.manage');
   const { user, logout, isLoading } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
+    let isMounted = true;
+    notificationsApi
+      .list({ unreadOnly: true, limit: 1 })
+      .then((res) => {
+        if (isMounted && res.data) {
+          setUnreadCount(res.unreadCount || 0);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -50,13 +71,29 @@ export default function Navbar() {
             {tNav('offers')}
           </Link>
           {user?.globalRole === 'CANDIDATE' && (
-            <Link
-              href="/candidate/profile"
-              data-testid="nav-candidate-profile-link"
-              className="text-xs sm:text-sm font-medium text-gray-700 hover:text-brand-600 transition"
-            >
-              {tNav('profile')}
-            </Link>
+            <>
+              <Link
+                href="/candidate/profile"
+                data-testid="nav-candidate-profile-link"
+                className="text-xs sm:text-sm font-medium text-gray-700 hover:text-brand-600 transition"
+              >
+                {tNav('profile')}
+              </Link>
+              <Link
+                href="/candidate/applications"
+                data-testid="nav-candidate-applications-link"
+                className="text-xs sm:text-sm font-medium text-gray-700 hover:text-brand-600 transition"
+              >
+                {tNav('applications')}
+              </Link>
+              <Link
+                href="/candidate/saved-offers"
+                data-testid="nav-saved-offers-link"
+                className="text-xs sm:text-sm font-medium text-gray-700 hover:text-brand-600 transition"
+              >
+                {tNav('savedOffers')}
+              </Link>
+            </>
           )}
           {user?.globalRole === 'ORGANIZATION_USER' && (
             <Link
@@ -65,6 +102,32 @@ export default function Navbar() {
               className="text-xs sm:text-sm font-medium text-gray-700 hover:text-brand-600 transition"
             >
               {tOffers('navLink')}
+            </Link>
+          )}
+          {user?.globalRole === 'SYSTEM_ADMIN' && (
+            <Link
+              href="/admin"
+              data-testid="nav-admin-link"
+              className="text-xs sm:text-sm font-semibold text-amber-700 hover:text-amber-800 transition"
+            >
+              {tNav('admin')}
+            </Link>
+          )}
+          {user && (
+            <Link
+              href="/notifications"
+              data-testid="nav-notifications-link"
+              className="relative text-xs sm:text-sm font-medium text-gray-700 hover:text-brand-600 transition flex items-center gap-1"
+            >
+              <span>{tNav('notifications')}</span>
+              {unreadCount > 0 && (
+                <span
+                  data-testid="notifications-unread-badge"
+                  className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-white bg-red-600 rounded-full"
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </Link>
           )}
         </div>

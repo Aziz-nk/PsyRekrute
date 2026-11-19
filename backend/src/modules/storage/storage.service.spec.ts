@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { BadRequestException } from '@nestjs/common';
 import { LocalStorageProvider } from './local-storage.provider';
+import { S3StorageProvider } from './s3-storage.provider';
 import { StorageService } from './storage.service';
 
 const pdf = (extra = '') => Buffer.from(`%PDF-1.4\n${extra}`);
@@ -67,5 +68,37 @@ describe('Stockage – abstraction (provider local, dev uniquement)', () => {
     expect(provider.verify('GET', 'other.pdf', exp, sig)).toBe(false);
     const past = Math.floor(Date.now() / 1000) - 1;
     expect(provider.verify('GET', 'k.pdf', past, provider.sign('GET', 'k.pdf', past))).toBe(false);
+  });
+
+  it('S3StorageProvider : signe les URLs pre-signees avec S3_PUBLIC_ENDPOINT (AWS SigV4 intact) tout en conservant le chemin du bucket', async () => {
+    const s3Lan = new S3StorageProvider('psyrekrute-documents', {
+      endpoint: 'http://minio:9000',
+      publicEndpoint: 'http://192.168.1.50',
+      region: 'us-east-1',
+      accessKey: 'minio_test_access_key',
+      secretKey: 'minio_test_secret_key_minimum_length',
+    });
+
+    const key = 'candidates/11111111-1111-1111-1111-111111111111/cv/doc.pdf';
+    const uploadUrlStr = await s3Lan.createUploadUrl(key, 'application/pdf', 900);
+    const downloadUrlStr = await s3Lan.createDownloadUrl(key, 900);
+
+    const uploadUrl = new URL(uploadUrlStr);
+    const downloadUrl = new URL(downloadUrlStr);
+
+    expect(uploadUrl.origin).toBe('http://192.168.1.50');
+    expect(uploadUrl.pathname).toBe(`/psyrekrute-documents/${key}`);
+    expect(uploadUrl.searchParams.get('X-Amz-Algorithm')).toBe('AWS4-HMAC-SHA256');
+    expect(uploadUrl.searchParams.get('X-Amz-SignedHeaders')).toContain('host');
+    expect(uploadUrl.searchParams.get('X-Amz-Expires')).toBe('900');
+    expect(uploadUrl.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/);
+
+    expect(downloadUrl.origin).toBe('http://192.168.1.50');
+    expect(downloadUrl.pathname).toBe(`/psyrekrute-documents/${key}`);
+    expect(downloadUrl.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/);
+    // Les signatures upload (PUT) et download (GET) doivent etre distinctes
+    expect(uploadUrl.searchParams.get('X-Amz-Signature')).not.toBe(
+      downloadUrl.searchParams.get('X-Amz-Signature'),
+    );
   });
 });

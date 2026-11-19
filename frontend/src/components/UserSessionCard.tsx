@@ -56,13 +56,29 @@ export default function UserSessionCard() {
 
         <div className="flex items-center justify-between gap-3">
           {user.globalRole === 'CANDIDATE' ? (
-            <Link
-              href="/candidate/profile"
-              data-testid="card-candidate-profile-btn"
-              className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-700 transition"
-            >
-              {tNav('profile')}
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/candidate/profile"
+                data-testid="card-candidate-profile-btn"
+                className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-700 transition"
+              >
+                {tNav('profile')}
+              </Link>
+              <Link
+                href="/candidate/applications"
+                data-testid="card-candidate-applications-btn"
+                className="rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-100 transition"
+              >
+                {tNav('applications')}
+              </Link>
+              <Link
+                href="/candidate/saved-offers"
+                data-testid="card-candidate-saved-offers-btn"
+                className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 transition"
+              >
+                {tNav('savedOffers')}
+              </Link>
+            </div>
           ) : user.globalRole === 'ORGANIZATION_USER' ? (
             <Link
               href="/organization/offers"
@@ -70,6 +86,14 @@ export default function UserSessionCard() {
               className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-700 transition"
             >
               {tOffers('navLink')}
+            </Link>
+          ) : user.globalRole === 'SYSTEM_ADMIN' ? (
+            <Link
+              href="/admin"
+              data-testid="card-admin-btn"
+              className="rounded-lg bg-amber-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-amber-700 transition"
+            >
+              {tNav('admin')}
             </Link>
           ) : (
             <div />

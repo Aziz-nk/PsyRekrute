@@ -214,4 +214,47 @@ export class CandidatesController {
       data,
     };
   }
+
+  @Get('me/saved-offers')
+  @ApiOperation({ summary: 'Consulter les offres sauvegardées en favoris par le candidat' })
+  @ApiOkResponse({ description: 'Liste des offres sauvegardées' })
+  async listSavedOffers(@CurrentUser() user: AuthenticatedUser) {
+    const data = await this.candidatesService.listSavedOffers(user.userId);
+    return {
+      statusCode: HttpStatus.OK,
+      data,
+    };
+  }
+
+  @Post('me/saved-offers/:offerId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Ajouter une offre aux favoris' })
+  @ApiOkResponse({ description: 'Offre ajoutée aux favoris' })
+  async saveOffer(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('offerId', ParseUUIDPipe) offerId: string,
+  ) {
+    const data = await this.candidatesService.saveOffer(user.userId, offerId);
+    return {
+      statusCode: HttpStatus.OK,
+      message: 'Offer saved to favorites',
+      data,
+    };
+  }
+
+  @Delete('me/saved-offers/:offerId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Retirer une offre des favoris' })
+  @ApiOkResponse({ description: 'Offre retirée des favoris' })
+  async unsaveOffer(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('offerId', ParseUUIDPipe) offerId: string,
+  ) {
+    const data = await this.candidatesService.unsaveOffer(user.userId, offerId);
+    return {
+      statusCode: HttpStatus.OK,
+      message: 'Offer removed from favorites',
+      data,
+    };
+  }
 }

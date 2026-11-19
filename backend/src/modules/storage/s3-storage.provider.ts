@@ -7,33 +7,60 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { StorageDriver, StorageProvider } from './storage.types';
 
-/** Fournisseur cible : MinIO (dev/staging) ou tout service compatible S3 (prod). */
+export interface S3StorageProviderOptions {
+  endpoint: string;
+  /**
+   * Adresse publique / LAN utilisee exclusivement pour signer les URLs pre-signees (upload/download navigateur).
+   * Lorsqu'elle est definie (ex: S3_PUBLIC_ENDPOINT=http://192.168.1.50 via reverse proxy Caddy),
+   * la signature AWS SigV4 est calculee directement avec cet hote, sans aucune reecriture post-signature.
+   */
+  publicEndpoint?: string;
+  region: string;
+  accessKey: string;
+  secretKey: string;
+}
+
+/** Fournisseur cible : MinIO (dev/staging/LAN) ou tout service compatible S3 (prod). */
 export class S3StorageProvider implements StorageProvider {
   readonly driver: StorageDriver = 's3';
   private readonly client: S3Client;
+  private readonly presignerClient: S3Client;
 
   constructor(
     private readonly bucket: string,
-    opts: { endpoint: string; region: string; accessKey: string; secretKey: string },
+    opts: S3StorageProviderOptions,
   ) {
+    const internalEndpoint = opts.endpoint.trim();
+    const externalEndpoint = opts.publicEndpoint?.trim() || internalEndpoint;
+
     this.client = new S3Client({
-      endpoint: opts.endpoint,
+      endpoint: internalEndpoint,
       region: opts.region,
       credentials: { accessKeyId: opts.accessKey, secretAccessKey: opts.secretKey },
       forcePathStyle: true, // requis par MinIO
     });
+
+    this.presignerClient =
+      externalEndpoint === internalEndpoint
+        ? this.client
+        : new S3Client({
+            endpoint: externalEndpoint,
+            region: opts.region,
+            credentials: { accessKeyId: opts.accessKey, secretAccessKey: opts.secretKey },
+            forcePathStyle: true, // requis par MinIO
+          });
   }
 
   createUploadUrl(key: string, contentType: string, expiresInSeconds: number): Promise<string> {
     return getSignedUrl(
-      this.client,
+      this.presignerClient,
       new PutObjectCommand({ Bucket: this.bucket, Key: key, ContentType: contentType }),
       { expiresIn: expiresInSeconds },
     );
   }
 
   createDownloadUrl(key: string, expiresInSeconds: number): Promise<string> {
-    return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.bucket, Key: key }), {
+    return getSignedUrl(this.presignerClient, new GetObjectCommand({ Bucket: this.bucket, Key: key }), {
       expiresIn: expiresInSeconds,
     });
   }

@@ -124,6 +124,10 @@ export class OffersService {
       where.regionCode = query.regionCode;
     }
 
+    if (query.cityName && query.cityName.trim().length > 0) {
+      where.cityName = { equals: query.cityName.trim(), mode: 'insensitive' };
+    }
+
     if (query.specialtyId) {
       where.targetSpecialtyId = query.specialtyId;
     }

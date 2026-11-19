@@ -561,6 +561,7 @@ export const offersApi = {
     limit?: number;
     offerType?: string;
     regionCode?: string;
+    cityName?: string;
     specialtyId?: string;
     search?: string;
   }) {
@@ -569,6 +570,7 @@ export const offersApi = {
     if (params?.limit) query.set('limit', String(params.limit));
     if (params?.offerType) query.set('offerType', params.offerType);
     if (params?.regionCode) query.set('regionCode', params.regionCode);
+    if (params?.cityName) query.set('cityName', params.cityName);
     if (params?.specialtyId) query.set('specialtyId', params.specialtyId);
     if (params?.search) query.set('search', params.search);
     const qs = query.toString();
@@ -698,3 +700,575 @@ export const offersApi = {
     });
   },
 };
+
+export type ApplicationOrigin = 'DIRECT_APPLY' | 'CENTER_INVITATION';
+
+export type ApplicationStatus =
+  | 'INVITED'
+  | 'INVITATION_DECLINED'
+  | 'INVITATION_EXPIRED'
+  | 'SUBMITTED'
+  | 'REVIEWING'
+  | 'INTERVIEW_PROPOSED'
+  | 'INTERVIEW_CONFIRMED'
+  | 'INTERVIEW_RESCHEDULE_REQUESTED'
+  | 'OFFER_EXTENDED'
+  | 'HIRED'
+  | 'REJECTED'
+  | 'WITHDRAWN';
+
+export type InterviewMode = 'IN_PERSON' | 'REMOTE_VIDEO' | 'PHONE';
+
+export interface ApplicationHistoryItem {
+  id: string;
+  previousStatus: ApplicationStatus | null;
+  newStatus: ApplicationStatus;
+  changedByUserId: string;
+  comment: string | null;
+  createdAt: string;
+}
+
+export interface CandidateApplication {
+  id: string;
+  jobOfferId: string;
+  candidateId: string;
+  origin: ApplicationOrigin;
+  currentStatus: ApplicationStatus;
+  initialMatchScore: number | null;
+  interviewRescheduleCount: number;
+  interviewDate: string | null;
+  interviewMode: InterviewMode | null;
+  interviewLocationOrLink: string | null;
+  hiringOfferDetails: string | null;
+  hiringOfferDeadline: string | null;
+  invitationExpiresAt: string | null;
+  appliedAt: string;
+  updatedAt: string;
+  jobOffer: {
+    id: string;
+    title: string;
+    offerType: string;
+    contractSubType: string;
+    cityName: string;
+    regionCode: string;
+    status: string;
+    organization: {
+      id: string;
+      legalName: string;
+      tradeName: string;
+      organizationType: string;
+      cityName: string;
+      regionCode: string;
+      verificationStatus: string;
+    };
+  };
+  history: ApplicationHistoryItem[];
+}
+
+export interface RecruiterApplication {
+  id: string;
+  jobOfferId: string;
+  candidateId: string;
+  origin: ApplicationOrigin;
+  currentStatus: ApplicationStatus;
+  initialMatchScore: number | null;
+  interviewRescheduleCount: number;
+  interviewDate: string | null;
+  interviewMode: InterviewMode | null;
+  interviewLocationOrLink: string | null;
+  hiringOfferDetails: string | null;
+  hiringOfferDeadline: string | null;
+  invitationExpiresAt: string | null;
+  appliedAt: string;
+  updatedAt: string;
+  isAnonymized: boolean;
+  candidate: {
+    id: string;
+    displayName: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    phone: string | null;
+    bio: string | null;
+    profileCategory: string;
+    regionCode: string;
+    cityName: string;
+    mobilityRadiusKm: number;
+    openToRelocation: boolean;
+    availabilityStatus: string;
+    availableFromDate: string | null;
+    hasCv: boolean;
+    primarySpecialty?: RefSpecialty | null;
+    education?: CandidateEducation[];
+    experiences?: CandidateExperience[];
+    skills?: CandidateSkill[];
+    languages?: CandidateLanguage[];
+  };
+  history: ApplicationHistoryItem[];
+}
+
+export const applicationsApi = {
+  async applyDirect(payload: { jobOfferId: string; comment?: string }) {
+    return request<{
+      statusCode: number;
+      message: string;
+      data: CandidateApplication;
+    }>('/applications', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async inviteCandidate(payload: {
+    jobOfferId: string;
+    candidateId: string;
+    comment?: string;
+  }) {
+    return request<{
+      statusCode: number;
+      message: string;
+      data: RecruiterApplication;
+    }>('/applications/invite', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async listMyApplications() {
+    return request<{
+      statusCode: number;
+      data: CandidateApplication[];
+    }>('/candidates/me/applications', {
+      method: 'GET',
+    });
+  },
+
+  async transitionByCandidate(
+    applicationId: string,
+    payload: { targetStatus: ApplicationStatus; comment?: string },
+  ) {
+    return request<{
+      statusCode: number;
+      message: string;
+      data: CandidateApplication;
+    }>(`/candidates/me/applications/${applicationId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async listOfferApplications(organizationId: string, offerId: string) {
+    return request<{
+      statusCode: number;
+      data: RecruiterApplication[];
+    }>(
+      `/organizations/${organizationId}/job-offers/${offerId}/applications`,
+      {
+        method: 'GET',
+      },
+    );
+  },
+
+  async transitionByRecruiter(
+    organizationId: string,
+    applicationId: string,
+    payload: {
+      targetStatus: ApplicationStatus;
+      comment?: string;
+      interviewDate?: string;
+      interviewMode?: InterviewMode;
+      interviewLocationOrLink?: string;
+      hiringOfferDetails?: string;
+      hiringOfferDeadline?: string;
+    },
+  ) {
+    return request<{
+      statusCode: number;
+      message: string;
+      data: RecruiterApplication;
+    }>(
+      `/organizations/${organizationId}/applications/${applicationId}/status`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
+  async getCvDownloadUrl(candidateId: string) {
+    return request<{
+      statusCode: number;
+      data: {
+        downloadUrl: string;
+        fileName: string | null;
+        expiresInSeconds: number;
+      };
+    }>('/candidate/cv/download-url', {
+      method: 'POST',
+      body: JSON.stringify({ candidateId }),
+    });
+  },
+};
+
+// ==========================================
+// SPRINT 5 APIS
+// ==========================================
+
+export interface NotificationItem {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  message: string;
+  linkUrl: string | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export const notificationsApi = {
+  async list(params?: { unreadOnly?: boolean; page?: number; limit?: number }) {
+    const query = new URLSearchParams();
+    if (params?.unreadOnly) query.set('unreadOnly', 'true');
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    const qs = query.toString();
+    return request<{
+      statusCode: number;
+      data: NotificationItem[];
+      unreadCount: number;
+      meta: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+      };
+    }>(`/notifications${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  async markAsRead(notificationId: string) {
+    return request<{
+      statusCode: number;
+      message: string;
+      data: NotificationItem;
+    }>(`/notifications/${notificationId}/read`, { method: 'PATCH' });
+  },
+
+  async markAllAsRead() {
+    return request<{
+      statusCode: number;
+      message: string;
+    }>('/notifications/read-all', { method: 'POST' });
+  },
+};
+
+export interface AdminOrganizationItem {
+  id: string;
+  legalName: string;
+  tradeName: string;
+  organizationType: string;
+  identifierIce: string | null;
+  officialRegistrationNumber: string | null;
+  website: string | null;
+  phone: string;
+  email: string;
+  regionCode: string;
+  cityName: string;
+  addressLine: string;
+  verificationStatus: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  verifiedAt: string | null;
+  createdAt: string;
+  _count: {
+    members: number;
+    jobOffers: number;
+  };
+  members?: Array<{
+    id: string;
+    role: string;
+    user: {
+      id: string;
+      email: string;
+    };
+  }>;
+}
+
+export interface AdminAuditLogItem {
+  id: string;
+  userId: string | null;
+  action: string;
+  entityType: string;
+  entityId: string;
+  details: Record<string, unknown> | null;
+  ipAddress: string | null;
+  createdAt: string;
+}
+
+export const adminApi = {
+  async listOrganizations(status?: string) {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    return request<{
+      statusCode: number;
+      data: AdminOrganizationItem[];
+    }>(`/admin/organizations${qs}`, { method: 'GET' });
+  },
+
+  async verifyOrganization(
+    organizationId: string,
+    payload: { status: 'VERIFIED' | 'REJECTED'; reason?: string },
+  ) {
+    return request<{
+      statusCode: number;
+      message: string;
+      data: AdminOrganizationItem;
+    }>(`/admin/organizations/${organizationId}/verification`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async listAuditLogs(params?: {
+    page?: number;
+    limit?: number;
+    action?: string;
+    entityType?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.action) query.set('action', params.action);
+    if (params?.entityType) query.set('entityType', params.entityType);
+    const qs = query.toString();
+    return request<{
+      statusCode: number;
+      data: AdminAuditLogItem[];
+      meta: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+      };
+    }>(`/admin/audit-logs${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+};
+
+export interface SavedOfferItem {
+  id: string;
+  jobOfferId: string;
+  createdAt: string;
+  jobOffer: JobOffer;
+}
+
+export const savedOffersApi = {
+  async list() {
+    return request<{
+      statusCode: number;
+      data: SavedOfferItem[];
+    }>('/candidates/me/saved-offers', { method: 'GET' });
+  },
+
+  async save(jobOfferId: string) {
+    return request<{
+      statusCode: number;
+      message: string;
+      data: SavedOfferItem;
+    }>(`/candidates/me/saved-offers/${jobOfferId}`, { method: 'POST' });
+  },
+
+  async unsave(jobOfferId: string) {
+    return request<{
+      statusCode: number;
+      message: string;
+    }>(`/candidates/me/saved-offers/${jobOfferId}`, { method: 'DELETE' });
+  },
+};
+
+export interface OrgMemberItem {
+  id: string;
+  organizationId: string;
+  userId: string;
+  role: 'OWNER' | 'ADMIN' | 'RECRUITER' | 'VIEWER';
+  createdAt: string;
+  user: {
+    id: string;
+    email: string;
+    globalRole: string;
+    preferredLocale: string;
+    createdAt: string;
+  };
+}
+
+export const orgMembersApi = {
+  async listMembers(organizationId: string) {
+    return request<{
+      statusCode: number;
+      data: OrgMemberItem[];
+    }>(`/organizations/${organizationId}/members`, { method: 'GET' });
+  },
+
+  async addMember(
+    organizationId: string,
+    payload: {
+      userId?: string;
+      email?: string;
+      role: 'ADMIN' | 'RECRUITER' | 'VIEWER';
+    },
+  ) {
+    return request<{
+      statusCode: number;
+      message: string;
+      data: OrgMemberItem;
+    }>(`/organizations/${organizationId}/members`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async removeMember(organizationId: string, userId: string) {
+    return request<{
+      statusCode: number;
+      message?: string;
+      data?: { revoked: boolean };
+    }>(`/organizations/${organizationId}/members/${userId}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+export type ExternalJobStatus = 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED' | 'EXPIRED';
+
+export interface ExternalJobListing {
+  id: string;
+  title: string;
+  organizationName: string;
+  descriptionSummary: string;
+  cityName?: string | null;
+  regionCode?: string | null;
+  contractType?: string | null;
+  category?: string | null;
+  publicationDate?: string | null;
+  expirationDate?: string | null;
+  sourceName: string;
+  sourceUrl: string;
+  originalApplicationUrl?: string | null;
+  applicationInstructions?: string | null;
+  discoveredAt: string;
+  lastCheckedAt: string;
+  status: ExternalJobStatus;
+  contentHash: string;
+  reviewedAt?: string | null;
+  reviewedByUserId?: string | null;
+  rejectionReason?: string | null;
+  // Helpers optionnels
+  sourceDomain?: string;
+  sourcePlatform?: string;
+  collectedAt?: string;
+}
+
+export const externalJobsApi = {
+  async listPublished(params?: {
+    page?: number;
+    limit?: number;
+    cityName?: string;
+    category?: string;
+    contractType?: string;
+    search?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.cityName) query.set('cityName', params.cityName);
+    if (params?.category) query.set('category', params.category);
+    if (params?.contractType) query.set('contractType', params.contractType);
+    if (params?.search) query.set('search', params.search);
+
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    return request<{
+      statusCode: number;
+      data: ExternalJobListing[];
+      meta: PaginatedMeta;
+    }>(`/external-jobs${qs}`, { method: 'GET' });
+  },
+
+  async getPublished(id: string) {
+    return request<{
+      statusCode: number;
+      data: ExternalJobListing;
+    }>(`/external-jobs/${id}`, { method: 'GET' });
+  },
+
+  async listForAdmin(params?: {
+    page?: number;
+    limit?: number;
+    status?: ExternalJobStatus;
+    cityName?: string;
+    category?: string;
+    search?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.status) query.set('status', params.status);
+    if (params?.cityName) query.set('cityName', params.cityName);
+    if (params?.category) query.set('category', params.category);
+    if (params?.search) query.set('search', params.search);
+
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    return request<{
+      statusCode: number;
+      data: ExternalJobListing[];
+      meta: PaginatedMeta & {
+        countsByStatus?: Record<ExternalJobStatus, number>;
+      };
+    }>(`/admin/external-jobs${qs}`, { method: 'GET' });
+  },
+
+  async collectRss(keywords?: string[]) {
+    return request<{
+      statusCode: number;
+      message: string;
+      data: {
+        collected: number;
+        duplicates: number;
+        errors: number;
+        items: ExternalJobListing[];
+      };
+    }>('/admin/external-jobs/collect-rss', {
+      method: 'POST',
+      body: JSON.stringify({ keywords }),
+    });
+  },
+
+  async importUrl(url: string) {
+    return request<{
+      statusCode: number;
+      message: string;
+      data: ExternalJobListing;
+    }>('/admin/external-jobs/import-url', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
+  },
+
+  async review(
+    id: string,
+    payload: {
+      action: 'APPROVE' | 'REJECT' | 'EXPIRE';
+      rejectionReason?: string;
+      title?: string;
+      organizationName?: string;
+      descriptionSummary?: string;
+      cityName?: string;
+      contractType?: string;
+      category?: string;
+    },
+  ) {
+    return request<{
+      statusCode: number;
+      message: string;
+      data: ExternalJobListing;
+    }>(`/admin/external-jobs/${id}/review`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+};
+

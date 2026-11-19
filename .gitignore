@@ -16,11 +16,15 @@ out/
 
 # Environment files
 .env
+.env.*
 .env.local
 .env.development.local
 .env.test.local
+.env.production
 .env.production.local
+.env.lan
 !.env.example
+!.env.*.example
 
 # OS and Editor files
 .DS_Store

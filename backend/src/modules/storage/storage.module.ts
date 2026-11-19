@@ -24,9 +24,14 @@ import { LocalStorageController } from './local-storage.controller';
         const bucket = config.get<string>('MINIO_BUCKET_DOCUMENTS', 'psyrekrute-documents');
 
         if (driver === 's3') {
-          logger.log('Storage driver: s3 (MinIO / S3-compatible)');
+          const endpoint = config.get<string>('S3_ENDPOINT', 'http://localhost:9000');
+          const publicEndpoint = config.get<string>('S3_PUBLIC_ENDPOINT')?.trim() || undefined;
+          logger.log(
+            `Storage driver: s3 (endpoint=${endpoint}, publicEndpoint=${publicEndpoint ?? endpoint})`,
+          );
           return new S3StorageProvider(bucket, {
-            endpoint: config.get<string>('S3_ENDPOINT', 'http://localhost:9000'),
+            endpoint,
+            publicEndpoint,
             region: config.get<string>('S3_REGION', 'us-east-1'),
             accessKey: config.get<string>('S3_ACCESS_KEY', ''),
             secretKey: config.get<string>('S3_SECRET_KEY', ''),

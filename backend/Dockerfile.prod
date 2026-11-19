@@ -1,0 +1,72 @@
+# ==============================================================================
+# PsyRekrute Backend - Dockerfile de Production (Multi-stage build)
+# Node.js 20 LTS Bookworm Slim (Prisma engine glibc compatibility)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Étape 1 : Construction (Builder)
+# ------------------------------------------------------------------------------
+FROM node:20-bookworm-slim AS builder
+
+WORKDIR /app
+
+# Installation des dépendances système nécessaires à Prisma et OpenSSL
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends openssl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copie des manifestes de dépendances
+COPY package*.json ./
+
+# Installation propre des dépendances avec npm ci (reproductibilité stricte)
+RUN npm ci
+
+# Copie du schéma Prisma et génération du client Prisma
+COPY prisma ./prisma
+RUN npx prisma generate
+
+# Copie du code source et des fichiers de configuration
+COPY tsconfig*.json nest-cli.json ./
+COPY src ./src
+
+# Compilation TypeScript / NestJS
+RUN npm run build
+
+# Élagage des dépendances de développement pour l'image d'exécution
+RUN npm prune --omit=dev
+
+# ------------------------------------------------------------------------------
+# Étape 2 : Image d'exécution minimale (Runner)
+# ------------------------------------------------------------------------------
+FROM node:20-bookworm-slim AS runner
+
+WORKDIR /app
+
+# Installation de sécurité minimale (OpenSSL pour Prisma runtime)
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends openssl ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV NODE_ENV=production
+ENV APP_PORT=4000
+
+# Utilisation de l'utilisateur non-root standard node
+USER node
+
+# Copie des dépendances de production élaguées
+COPY --chown=node:node --from=builder /app/node_modules ./node_modules
+# Copie des artéfacts compilés
+COPY --chown=node:node --from=builder /app/dist ./dist
+# Copie du schéma et des migrations Prisma nécessaires pour `prisma migrate deploy`
+COPY --chown=node:node --from=builder /app/prisma ./prisma
+# Copie du package.json
+COPY --chown=node:node --from=builder /app/package.json ./package.json
+
+EXPOSE 4000
+
+# Healthcheck HTTP standard sur l'endpoint /api/v1/health
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:4000/api/v1/health || exit 1
+
+# Démarrage direct de l'application NestJS compilée (point d'entrée réel dist/src/main.js)
+CMD ["node", "dist/src/main.js"]

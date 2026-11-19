@@ -1,12 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { useAuth } from '@/context/auth-context';
 import { ApiClientError } from '@/lib/api-client';
 
 export default function RegisterPage() {
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams.get('returnUrl');
   const currentLocale = useLocale() as 'fr' | 'ar' | 'en';
   const t = useTranslations('auth.register');
   const tErrors = useTranslations('auth.errors');
@@ -109,7 +112,11 @@ export default function RegisterPage() {
             {t('successMessage')}
           </p>
           <Link
-            href="/login"
+            href={
+              returnUrl
+                ? `/login?returnUrl=${encodeURIComponent(returnUrl)}`
+                : '/login'
+            }
             data-testid="success-goto-login-btn"
             className="inline-flex w-full items-center justify-center rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 transition"
           >
@@ -333,7 +340,11 @@ export default function RegisterPage() {
         <div className="border-t border-gray-100 pt-4 text-center text-sm text-gray-600">
           <span>{t('hasAccount')} </span>
           <Link
-            href="/login"
+            href={
+              returnUrl
+                ? `/login?returnUrl=${encodeURIComponent(returnUrl)}`
+                : '/login'
+            }
             data-testid="goto-login-link"
             className="font-semibold text-brand-600 hover:text-brand-700 underline"
           >

@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { locales, localeConfig, type Locale } from '@/i18n/request';
 import { AuthProvider } from '@/context/auth-context';
 import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
 import '@/styles/globals.css';
 
 export async function generateMetadata({
@@ -45,6 +46,7 @@ export default async function LocaleLayout({
           <AuthProvider>
             <Navbar />
             <div className="flex-1">{children}</div>
+            <Footer />
           </AuthProvider>
         </NextIntlClientProvider>
       </body>

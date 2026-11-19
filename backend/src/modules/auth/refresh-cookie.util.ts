@@ -5,18 +5,39 @@ export const REFRESH_TOKEN_COOKIE_PATH = '/api/v1/auth';
 export const REFRESH_TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
 
 /**
+ * Determine l'attribut `Secure` du cookie HttpOnly de refresh token :
+ * - Par defaut : `true` en production (`NODE_ENV === 'production'`), `false` hors production.
+ * - Surcharge explicite possible via `COOKIE_SECURE=false` (exclusivement pour demonstration LAN en HTTP)
+ *   ou `COOKIE_SECURE=true`.
+ */
+export function resolveRefreshCookieSecure(
+  isProduction: boolean = process.env.NODE_ENV === 'production',
+  cookieSecureEnv: string | undefined = process.env.COOKIE_SECURE,
+): boolean {
+  const normalized = cookieSecureEnv?.trim().toLowerCase();
+  if (normalized === 'false') {
+    return false;
+  }
+  if (normalized === 'true') {
+    return true;
+  }
+  return isProduction;
+}
+
+/**
  * Construit les options du cookie HttpOnly de refresh token (D5 / DCTF §8.1) :
  * - `httpOnly: true` (inaccessible au JavaScript client)
- * - `secure: true` en production (`NODE_ENV === 'production'`)
+ * - `secure: true` par defaut en production (`NODE_ENV === 'production'`), surchargeable via `COOKIE_SECURE=false` en LAN HTTP
  * - `sameSite: 'lax'`
  * - `path: '/api/v1/auth'`
  */
 export function buildRefreshCookieOptions(
   isProduction: boolean = process.env.NODE_ENV === 'production',
+  cookieSecureEnv: string | undefined = process.env.COOKIE_SECURE,
 ): CookieOptions {
   return {
     httpOnly: true,
-    secure: isProduction,
+    secure: resolveRefreshCookieSecure(isProduction, cookieSecureEnv),
     sameSite: 'lax',
     path: REFRESH_TOKEN_COOKIE_PATH,
     maxAge: REFRESH_TOKEN_MAX_AGE_MS,

@@ -1,11 +1,14 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -18,7 +21,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { GlobalRole } from '@prisma/client';
+import { GlobalRole, VerificationStatus } from '@prisma/client';
 import type { Request } from 'express';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { GlobalRolesGuard } from '../auth/global-roles.guard';
@@ -35,6 +38,31 @@ import { OrganizationsService } from './organizations.service';
 @Roles(GlobalRole.SYSTEM_ADMIN)
 export class AdminOrganizationsController {
   constructor(private readonly organizationsService: OrganizationsService) {}
+
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Consultation de la liste des organisations (SYSTEM_ADMIN exclusif, DCTF §4.2)',
+  })
+  @ApiOkResponse({ description: 'Liste des organisations' })
+  @ApiUnauthorizedResponse({ description: 'Authentification requise' })
+  @ApiForbiddenResponse({ description: 'Réservé aux administrateurs système' })
+  async listOrganizations(@Query('status') status?: string) {
+    let verificationStatus: VerificationStatus | undefined;
+    if (status) {
+      if (!Object.values(VerificationStatus).includes(status as VerificationStatus)) {
+        throw new BadRequestException(`Invalid verification status: ${status}`);
+      }
+      verificationStatus = status as VerificationStatus;
+    }
+
+    const data = await this.organizationsService.listOrganizationsForAdmin(verificationStatus);
+    return {
+      statusCode: HttpStatus.OK,
+      data,
+    };
+  }
 
   @Patch(':organizationId/verification')
   @HttpCode(HttpStatus.OK)

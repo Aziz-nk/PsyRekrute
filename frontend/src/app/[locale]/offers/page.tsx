@@ -2,7 +2,8 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { Link } from '@/i18n/routing';
+import { Link, useRouter } from '@/i18n/routing';
+import { useAuth } from '@/context/auth-context';
 import {
   JobOffer,
   MoroccanRegion,
@@ -15,6 +16,8 @@ import {
 export default function PublicOffersPage() {
   const t = useTranslations('offers');
   const locale = useLocale();
+  const router = useRouter();
+  const { user } = useAuth();
 
   const [offers, setOffers] = useState<JobOffer[]>([]);
   const [meta, setMeta] = useState<PaginatedMeta>({
@@ -85,6 +88,24 @@ export default function PublicOffersPage() {
     setRegionCode('');
     setSpecialtyId('');
     setPage(1);
+  };
+
+  const handleApplyClick = (offerId: string) => {
+    if (!user) {
+      router.push(`/register?returnUrl=/offers/${offerId}`);
+      return;
+    }
+    if (user.globalRole === 'CANDIDATE') {
+      router.push(`/offers/${offerId}#apply`);
+      return;
+    }
+    alert(
+      locale === 'ar'
+        ? 'الترشح مخصص لحسابات المرشحين فقط.'
+        : locale === 'en'
+          ? 'Applications are reserved for candidate accounts.'
+          : 'Les candidatures sont réservées aux comptes candidats.',
+    );
   };
 
   const getRegionLabel = (code: string) => {
@@ -276,13 +297,23 @@ export default function PublicOffersPage() {
                 </div>
 
                 <div className="flex flex-col sm:items-end gap-2">
-                  <Link
-                    href={`/offers/${offer.id}`}
-                    data-testid={`view-offer-btn-${offer.id}`}
-                    className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-700 transition"
-                  >
-                    {t('public.viewDetails')}
-                  </Link>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/offers/${offer.id}`}
+                      data-testid={`view-offer-btn-${offer.id}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition"
+                    >
+                      {t('public.viewDetails')}
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyClick(offer.id)}
+                      data-testid={`apply-offer-btn-${offer.id}`}
+                      className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-brand-700 transition"
+                    >
+                      {locale === 'ar' ? 'الترشح' : locale === 'en' ? 'Apply' : 'Postuler'}
+                    </button>
+                  </div>
                   <div className="text-xs text-gray-500">
                     {t('public.startDate')} :{' '}
                     {new Date(offer.startDate).toLocaleDateString(locale)}

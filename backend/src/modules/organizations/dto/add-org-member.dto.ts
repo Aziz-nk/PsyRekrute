@@ -1,6 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { OrgMemberRole } from '@prisma/client';
-import { IsEnum, IsNotEmpty, IsUUID } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsUUID } from 'class-validator';
 
 export const ASSIGNABLE_ORG_ROLES = [
   OrgMemberRole.ADMIN,
@@ -11,13 +11,21 @@ export const ASSIGNABLE_ORG_ROLES = [
 export type AssignableOrgRole = (typeof ASSIGNABLE_ORG_ROLES)[number];
 
 export class AddOrgMemberDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: '550e8400-e29b-41d4-a716-446655440000',
     description: "Identifiant UUID de l'utilisateur à intégrer",
   })
+  @IsOptional()
   @IsUUID()
-  @IsNotEmpty()
-  userId!: string;
+  userId?: string;
+
+  @ApiPropertyOptional({
+    example: 'recruteur@entreprise.ma',
+    description: "Adresse email du compte utilisateur organisation à intégrer",
+  })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 
   @ApiProperty({
     enum: ASSIGNABLE_ORG_ROLES,

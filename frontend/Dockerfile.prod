@@ -1,0 +1,73 @@
+# ==============================================================================
+# PsyRekrute Frontend - Dockerfile de Production (Multi-stage build)
+# Node.js 20 LTS Alpine (Optimisé avec Next.js Standalone Output)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Étape 1 : Installation des dépendances (Deps)
+# ------------------------------------------------------------------------------
+FROM node:20-alpine AS deps
+
+# libc6-compat peut être requis par certains packages compilés sur Alpine
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+# ------------------------------------------------------------------------------
+# Étape 2 : Construction de l'application (Builder)
+# ------------------------------------------------------------------------------
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Variables injectées à la compilation par Next.js (préfixe NEXT_PUBLIC_)
+ARG NEXT_PUBLIC_API_URL=/api/v1
+ARG NEXT_PUBLIC_DEFAULT_LOCALE=fr
+
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_DEFAULT_LOCALE=$NEXT_PUBLIC_DEFAULT_LOCALE
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+RUN npm run build
+
+# ------------------------------------------------------------------------------
+# Étape 3 : Image d'exécution minimale (Runner)
+# ------------------------------------------------------------------------------
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Sécurité : exécution sous un utilisateur non privilégié
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Copie des fichiers publics et des artéfacts Next.js standalone
+COPY --from=builder /app/public ./public
+
+# Configuration des permissions pour le cache prerender Next.js
+RUN mkdir .next && chown nextjs:nodejs .next
+
+# Copie du serveur standalone et des fichiers statiques
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
+
+CMD ["node", "server.js"]
