@@ -68,7 +68,7 @@ export default function HomePage() {
       setIsLoading(true);
       setError(null);
       try {
-        const [intRes, extRes] = await Promise.all([
+        const [intOutcome, extOutcome] = await Promise.allSettled([
           offersApi.listPublicOffers({
             page: targetPage,
             limit: 10,
@@ -91,11 +91,39 @@ export default function HomePage() {
           }),
         ]);
 
-        setInternalOffers(intRes.data || []);
-        setInternalMeta(intRes.meta);
+        const errors: string[] = [];
 
-        setExternalOffers(extRes.data || []);
-        setExternalTotal(extRes.meta?.total || 0);
+        if (intOutcome.status === 'fulfilled') {
+          setInternalOffers(intOutcome.value.data || []);
+          setInternalMeta(intOutcome.value.meta);
+        } else {
+          setInternalOffers([]);
+          setInternalMeta({ page: 1, limit: 10, total: 0, totalPages: 1 });
+          errors.push(
+            intOutcome.reason instanceof Error
+              ? intOutcome.reason.message
+              : 'Erreur de chargement des offres internes',
+          );
+        }
+
+        if (extOutcome.status === 'fulfilled') {
+          setExternalOffers(extOutcome.value.data || []);
+          setExternalTotal(extOutcome.value.meta?.total || 0);
+        } else {
+          setExternalOffers([]);
+          setExternalTotal(0);
+          const extMsg =
+            extOutcome.reason instanceof Error
+              ? extOutcome.reason.message
+              : 'Erreur de chargement des offres externes';
+          if (!errors.includes(extMsg)) {
+            errors.push(extMsg);
+          }
+        }
+
+        if (errors.length > 0) {
+          setError(errors.join(' | '));
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Erreur de chargement des offres');
       } finally {

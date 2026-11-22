@@ -31,6 +31,12 @@ export class QueryExternalJobsDto {
   @MaxLength(100)
   category?: string;
 
+  @ApiPropertyOptional({ description: 'Filtrer par type de contrat (ex: Stage, Emploi)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  contractType?: string;
+
   @ApiPropertyOptional({ description: 'Recherche textuelle dans le titre ou le résumé' })
   @IsOptional()
   @IsString()

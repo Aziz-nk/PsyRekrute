@@ -45,6 +45,31 @@ export class ExternalJobsService {
     private readonly auditService: AuditService,
   ) {}
 
+  private applyContractTypeFilter(
+    where: Prisma.ExternalJobListingWhereInput,
+    contractType?: string,
+  ) {
+    if (!contractType || contractType.trim().length === 0) {
+      return;
+    }
+    const ct = contractType.trim();
+    if (ct.toLowerCase() === 'stage') {
+      where.contractType = { contains: 'stage', mode: 'insensitive' };
+    } else if (ct.toLowerCase() === 'emploi') {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        {
+          OR: [
+            { contractType: null },
+            { NOT: { contractType: { contains: 'stage', mode: 'insensitive' } } },
+          ],
+        },
+      ];
+    } else {
+      where.contractType = { equals: ct, mode: 'insensitive' };
+    }
+  }
+
   /**
    * 1. Collecte semi-automatique contrôlée depuis le flux RSS officiel de Dreamjob.ma
    * Déclenchée exclusivement par un administrateur (aucun CRON).
@@ -300,6 +325,8 @@ export class ExternalJobsService {
       where.category = { equals: query.category.trim(), mode: 'insensitive' };
     }
 
+    this.applyContractTypeFilter(where, query.contractType);
+
     if (query.search && query.search.trim().length > 0) {
       const term = query.search.trim();
       where.OR = [
@@ -438,6 +465,8 @@ export class ExternalJobsService {
     if (query.category && query.category.trim().length > 0) {
       where.category = { equals: query.category.trim(), mode: 'insensitive' };
     }
+
+    this.applyContractTypeFilter(where, query.contractType);
 
     if (query.search && query.search.trim().length > 0) {
       const term = query.search.trim();
